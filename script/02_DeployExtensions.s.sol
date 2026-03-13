@@ -25,7 +25,7 @@ contract DeployExtensions is Script {
         address swapRouterV3 = vm.envAddress("UNISWAP_V3_SWAP_ROUTER");
 
         // Protocol config
-        address liquidFeeRecipient = vm.envAddress("LIQUID_FEE_RECIPIENT");
+        address liquidFeeRecipient = vm.envAddress("LIQUID_PRESALE_FEE_RECIPIENT");
 
         vm.startBroadcast(deployerKey);
 

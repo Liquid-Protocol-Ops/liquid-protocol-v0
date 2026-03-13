@@ -5,8 +5,8 @@
 1. Copy `.env.example` to `.env` and fill in:
    - `DEPLOYER_PRIVATE_KEY` — funded wallet on Base
    - `OWNER_ADDRESS` — multisig or EOA that will own all contracts
-   - `BASESCAN_API_KEY` — from basescan.org
-   - `LIQUID_FEE_RECIPIENT` — protocol fee address for presales
+   - `ETHERSCAN_API_KEY` — from etherscan.io (Etherscan v2 — single key, chain ID selects Base)
+   - `LIQUID_PRESALE_FEE_RECIPIENT` — protocol fee address for presales
 2. Ensure deployer wallet has enough ETH for gas (~0.05 ETH recommended)
 3. Run `forge build` to confirm compilation succeeds
 
@@ -21,8 +21,8 @@ Every `forge script` command below includes `--verify --verifier etherscan --slo
 ```bash
 forge verify-contract <ADDRESS> <ContractName> \
   --verifier etherscan \
-  --verifier-url https://api.basescan.org/api \
-  --etherscan-api-key $BASESCAN_API_KEY \
+  --verifier-url https://api.etherscan.io/v2/api?chainid=8453 \
+  --etherscan-api-key $ETHERSCAN_API_KEY_1 \
   --constructor-args $(cast abi-encode "constructor(...)" arg1 arg2) \
   --watch
 ```
@@ -40,8 +40,8 @@ source .env && forge script script/00_DeployCore.s.sol:DeployCore \
   --broadcast \
   --verify \
   --verifier etherscan \
-  --verifier-url https://api.basescan.org/api \
-  --etherscan-api-key $BASESCAN_API_KEY \
+  --verifier-url https://api.etherscan.io/v2/api?chainid=8453 \
+  --etherscan-api-key $ETHERSCAN_API_KEY_1 \
   --slow
 ```
 
@@ -62,8 +62,8 @@ source .env && forge script script/01_DeployHooks.s.sol:DeployHooks \
   --broadcast \
   --verify \
   --verifier etherscan \
-  --verifier-url https://api.basescan.org/api \
-  --etherscan-api-key $BASESCAN_API_KEY \
+  --verifier-url https://api.etherscan.io/v2/api?chainid=8453 \
+  --etherscan-api-key $ETHERSCAN_API_KEY_1 \
   --slow
 ```
 
@@ -84,8 +84,8 @@ source .env && forge script script/02_DeployExtensions.s.sol:DeployExtensions \
   --broadcast \
   --verify \
   --verifier etherscan \
-  --verifier-url https://api.basescan.org/api \
-  --etherscan-api-key $BASESCAN_API_KEY \
+  --verifier-url https://api.etherscan.io/v2/api?chainid=8453 \
+  --etherscan-api-key $ETHERSCAN_API_KEY_1 \
   --slow
 ```
 
@@ -106,8 +106,8 @@ source .env && forge script script/03_DeployLpLockerAndMev.s.sol:DeployLpLockerA
   --broadcast \
   --verify \
   --verifier etherscan \
-  --verifier-url https://api.basescan.org/api \
-  --etherscan-api-key $BASESCAN_API_KEY \
+  --verifier-url https://api.etherscan.io/v2/api?chainid=8453 \
+  --etherscan-api-key $ETHERSCAN_API_KEY_1 \
   --slow
 ```
 
@@ -117,7 +117,7 @@ source .env && forge script script/03_DeployLpLockerAndMev.s.sol:DeployLpLockerA
 
 ### Phase 4 — Configure Allowlists
 
-No new deployments. Calls `enableHook`, `enableLocker`, `enableExtension`, `enableMevModule` on the Liquid factory.
+No new deployments. Calls `setHook`, `setLocker`, `setExtension`, `setMevModule` on the Liquid factory.
 
 Requires: ALL addresses from Phases 0–3
 
@@ -158,7 +158,7 @@ Phase 4: ConfigureAllowlists     (enables all modules on the factory)
 
 ## Base Sepolia (Testnet)
 
-Replace `$BASE_RPC_URL` with `$BASE_SEPOLIA_RPC_URL` and `--verifier-url` with `https://api-sepolia.basescan.org/api`. External contract addresses (PoolManager, etc.) may differ on Sepolia — update `.env` accordingly.
+Replace `$BASE_RPC_URL` with `$BASE_SEPOLIA_RPC_URL` and `--verifier-url` with `https://api.etherscan.io/v2/api?chainid=84532`. Same `ETHERSCAN_API_KEY` works for both networks. External contract addresses (PoolManager, etc.) may differ on Sepolia — update `.env` accordingly.
 
 ## Post-Deploy Checklist
 
