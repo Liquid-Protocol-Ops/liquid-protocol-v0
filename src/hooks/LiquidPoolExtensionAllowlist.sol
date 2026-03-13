@@ -6,6 +6,7 @@ import {ILiquidPoolExtensionAllowlist} from "./interfaces/ILiquidPoolExtensionAl
 import {OwnerAdmins} from "../utils/OwnerAdmins.sol";
 
 contract LiquidPoolExtensionAllowlist is ILiquidPoolExtensionAllowlist, OwnerAdmins {
+    string public constant PROTOCOL = "Liquid Protocol";
     mapping(address extension => bool enabled) public enabledExtensions;
 
     constructor(address owner_) OwnerAdmins(owner_) {}

@@ -40,6 +40,7 @@ import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmo
 import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
 
 abstract contract LiquidHookV2 is BaseHook, ILiquidHookV2 {
+    string public constant PROTOCOL = "Liquid Protocol";
     using TickMath for int24;
     using BeforeSwapDeltaLibrary for BeforeSwapDelta;
     using StateLibrary for *;

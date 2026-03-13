@@ -28,6 +28,7 @@ import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
 
 contract LiquidLpLockerFeeConversion is ILiquidLpLockerFeeConversion, ReentrancyGuard, Ownable {
+    string public constant PROTOCOL = "Liquid Protocol";
     using TickMath for int24;
     using BalanceDeltaLibrary for BalanceDelta;
 

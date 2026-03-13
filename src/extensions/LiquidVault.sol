@@ -11,6 +11,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 contract LiquidVault is ReentrancyGuard, ILiquidVault {
+    string public constant PROTOCOL = "Liquid Protocol";
     address public immutable factory;
 
     mapping(address => Allocation) public allocation;

@@ -6,6 +6,7 @@ import {ILiquidPresaleAllowlist} from "./interfaces/ILiquidPresaleAllowlist.sol"
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 contract LiquidPresaleAllowlist is ILiquidPresaleAllowlist {
+    string public constant PROTOCOL = "Liquid Protocol";
     error InvalidProof();
     error MerkleRootNotSet();
 

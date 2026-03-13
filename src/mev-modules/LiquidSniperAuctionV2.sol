@@ -50,6 +50,8 @@ contract LiquidSniperAuctionV2 is
     ILiquidMevDescendingFees,
     Ownable
 {
+    string public constant PROTOCOL = "Liquid Protocol";
+
     // gas peg and block number for a pool's auction
     mapping(PoolId => uint256 gasPeg) public gasPeg;
     mapping(PoolId => uint256 nextAuctionBlock) public nextAuctionBlock;

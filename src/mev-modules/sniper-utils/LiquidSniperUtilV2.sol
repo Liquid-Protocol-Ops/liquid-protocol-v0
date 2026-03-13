@@ -46,6 +46,8 @@ import {ILiquidSniperAuctionV0} from "../interfaces/ILiquidSniperAuctionV0.sol";
 
 // shared util for snipers to bid in LiquidSniperAuction V0 and V2 auctions
 contract LiquidSniperUtilV2 is ReentrancyGuard {
+    string public constant PROTOCOL = "Liquid Protocol";
+
     event AuctionSuccessful(
         PoolId indexed poolId,
         uint256 indexed round,

@@ -16,6 +16,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract LiquidAirdropV2 is ReentrancyGuard, ILiquidAirdropV2 {
+    string public constant PROTOCOL = "Liquid Protocol";
     address public immutable factory;
     mapping(address token => AirdropV2 airdrop) public airdrops;
 

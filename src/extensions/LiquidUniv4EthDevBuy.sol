@@ -21,6 +21,7 @@ import {IWETH9} from "@uniswap/v4-periphery/src/interfaces/external/IWETH9.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 
 contract LiquidUniv4EthDevBuy is ReentrancyGuard, ILiquidUniv4EthDevBuy {
+    string public constant PROTOCOL = "Liquid Protocol";
     ILiquid public immutable factory;
     IWETH9 public immutable weth;
     IUniversalRouter public immutable universalRouter;

@@ -15,6 +15,9 @@ optimizer_runs = 20_000
 base = { key = "${ETHERSCAN_API_KEY_1}", url = "https://api.etherscan.io/v2/api?chainid=8453", chain = 8453 }
 base_sepolia = { key = "${ETHERSCAN_API_KEY_1}", url = "https://api.etherscan.io/v2/api?chainid=84532", chain = 84532 }
 
+[profile.lplocker]
+optimizer_runs = 100
+
 [fmt]
 line_length = 100
 number_underscore = "thousands"

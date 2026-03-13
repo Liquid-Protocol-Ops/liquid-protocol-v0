@@ -10,6 +10,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract LiquidFeeLocker is ILiquidFeeLocker, ReentrancyGuard, Ownable {
+    string public constant PROTOCOL = "Liquid Protocol";
     mapping(address feeOwner => mapping(address token => uint256 balance)) public feesToClaim;
     mapping(address depositor => bool isAllowed) public allowedDepositors;
 

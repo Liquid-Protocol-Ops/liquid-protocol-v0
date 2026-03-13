@@ -13,6 +13,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 contract LiquidPresaleEthToCreator is ReentrancyGuard, ILiquidPresaleEthToCreator, OwnerAdmins {
+    string public constant PROTOCOL = "Liquid Protocol";
     ILiquid public immutable factory;
 
     // deployment time buffers

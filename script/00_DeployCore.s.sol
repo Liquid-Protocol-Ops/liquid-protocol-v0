@@ -10,17 +10,18 @@ import {LiquidPoolExtensionAllowlist} from "../src/hooks/LiquidPoolExtensionAllo
 contract DeployCore is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address owner = vm.envAddress("OWNER_ADDRESS");
+        address deployer = vm.addr(deployerKey);
 
         vm.startBroadcast(deployerKey);
 
-        Liquid liquid = new Liquid(owner);
+        // Deployer is initial owner — ownership transferred to Safe in Phase 5
+        Liquid liquid = new Liquid(deployer);
         console.log("Liquid factory:", address(liquid));
 
-        LiquidFeeLocker feeLocker = new LiquidFeeLocker(owner);
+        LiquidFeeLocker feeLocker = new LiquidFeeLocker(deployer);
         console.log("LiquidFeeLocker:", address(feeLocker));
 
-        LiquidPoolExtensionAllowlist poolExtAllowlist = new LiquidPoolExtensionAllowlist(owner);
+        LiquidPoolExtensionAllowlist poolExtAllowlist = new LiquidPoolExtensionAllowlist(deployer);
         console.log("LiquidPoolExtensionAllowlist:", address(poolExtAllowlist));
 
         vm.stopBroadcast();

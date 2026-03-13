@@ -59,6 +59,7 @@ import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 */
 
 contract LiquidToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable, IERC7802 {
+    string public constant PROTOCOL = "Liquid Protocol";
     error NotAdmin();
     error NotOriginalAdmin();
     error AlreadyVerified();

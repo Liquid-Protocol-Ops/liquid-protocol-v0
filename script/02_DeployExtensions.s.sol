@@ -13,7 +13,7 @@ import {LiquidPresaleAllowlist} from "../src/extensions/LiquidPresaleAllowlist.s
 contract DeployExtensions is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address owner = vm.envAddress("OWNER_ADDRESS");
+        address deployer = vm.addr(deployerKey);
 
         // From Phase 0
         address liquidFactory = vm.envAddress("LIQUID_FACTORY");
@@ -44,7 +44,7 @@ contract DeployExtensions is Script {
         console.log("LiquidUniv3EthDevBuy:", address(devBuyV3));
 
         LiquidPresaleEthToCreator presale =
-            new LiquidPresaleEthToCreator(owner, liquidFactory, liquidFeeRecipient);
+            new LiquidPresaleEthToCreator(deployer, liquidFactory, liquidFeeRecipient);
         console.log("LiquidPresaleEthToCreator:", address(presale));
 
         LiquidPresaleAllowlist presaleAllowlist = new LiquidPresaleAllowlist(address(presale));

@@ -59,8 +59,8 @@ contract ConfigureAllowlists is Script {
         console.log("Enabled extension:", devBuyV3);
         liquid.setExtension(presale, true);
         console.log("Enabled extension:", presale);
-        liquid.setExtension(presaleAllowlist, true);
-        console.log("Enabled extension:", presaleAllowlist);
+        // Note: PresaleAllowlist is not an extension (no ILiquidExtension) —
+        // it's a helper used by PresaleEthToCreator, not registered on the factory.
 
         // Enable MEV modules
         liquid.setMevModule(sniperAuction, true);

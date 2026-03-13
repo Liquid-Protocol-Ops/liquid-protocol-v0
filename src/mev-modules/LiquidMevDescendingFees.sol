@@ -36,6 +36,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 */
 
 contract LiquidMevDescendingFees is ILiquidMevDescendingFees {
+    string public constant PROTOCOL = "Liquid Protocol";
     mapping(PoolId poolId => FeeConfig feeConfig) public feeConfig;
     mapping(PoolId poolId => uint256 poolStartTime) public poolStartTime;
 

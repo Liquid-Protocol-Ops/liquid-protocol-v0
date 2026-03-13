@@ -60,6 +60,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 /// @notice Liquid Token Launcher
 contract Liquid is OwnerAdmins, ReentrancyGuard, ILiquid {
+    string public constant PROTOCOL = "Liquid Protocol";
     string constant version = "4";
 
     uint256 public constant TOKEN_SUPPLY = 100_000_000_000e18; // 100b with 18 decimals
