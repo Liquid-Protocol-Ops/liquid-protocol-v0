@@ -4,3 +4,4 @@
 @uniswap/v4-periphery/=lib/v4-periphery/
 @uniswap/universal-router/=lib/universal-router/
 @uniswap/permit2/=lib/permit2/
+permit2/=lib/permit2/
