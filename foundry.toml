@@ -11,6 +11,10 @@ optimizer = true
 optimizer_runs = 20_000
 
 
+[etherscan]
+base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api", chain = 8453 }
+base_sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api", chain = 84532 }
+
 [fmt]
 line_length = 100
 number_underscore = "thousands"
