@@ -43,6 +43,14 @@ Liquid Protocol is a token factory that deploys ERC-20 tokens paired with Uniswa
 | LiquidMevDescendingFees | [`0x8D6B080e48756A99F3893491D556B5d6907b6910`](https://basescan.org/address/0x8D6B080e48756A99F3893491D556B5d6907b6910) |
 | LiquidSniperUtilV2 | [`0x2B6cd5Be183c388Dd0074d53c52317df1414cd9f`](https://basescan.org/address/0x2B6cd5Be183c388Dd0074d53c52317df1414cd9f) |
 
+### External Dependencies
+| Contract | Address |
+|----------|---------|
+| Uniswap V4 Pool Manager | [`0x498581fF718922c3f8e6A244956aF099B2652b2b`](https://basescan.org/address/0x498581fF718922c3f8e6A244956aF099B2652b2b) |
+| WETH | [`0x4200000000000000000000000000000000000006`](https://basescan.org/address/0x4200000000000000000000000000000000000006) |
+| Universal Router | [`0x6fF5693b99212Da76ad316178A184AB56D299b43`](https://basescan.org/address/0x6fF5693b99212Da76ad316178A184AB56D299b43) |
+| Permit2 | [`0x000000000022D473030F116dDEE9F6B43aC78BA3`](https://basescan.org/address/0x000000000022D473030F116dDEE9F6B43aC78BA3) |
+
 **Owner (Gnosis Safe):** [`0x872c561f699B42977c093F0eD8b4C9a431280c6c`](https://basescan.org/address/0x872c561f699B42977c093F0eD8b4C9a431280c6c)
 
 All contracts are verified on Basescan with explicit Liquid Protocol source code.
@@ -111,6 +119,28 @@ forge test
 See [`script/DEPLOY.md`](./script/DEPLOY.md) for the full deployment guide.
 
 Compiler: Solidity 0.8.28, viaIR, optimizer 20,000 runs, EVM target Cancun.
+
+## SDK
+
+The TypeScript SDK for deploying tokens, swapping, and managing rewards is available at **[Liquid-Protocol-Ops/SDK](https://github.com/Liquid-Protocol-Ops/SDK)**.
+
+```bash
+npm install liquid-sdk viem
+```
+
+See the [SDK README](https://github.com/Liquid-Protocol-Ops/SDK#readme) for full API documentation, or the [Rainbow Integration Guide](https://github.com/Liquid-Protocol-Ops/SDK/blob/main/RAINBOW-INTEGRATION-GUIDE.md) for wallet-level swap encoding details.
+
+## Security
+
+This codebase is forked from [Clanker v4](https://github.com/clanker-devco/v4-contracts), which has been audited by:
+
+- **0xMacro** — [Clanker A-3 Audit Report](https://0xmacro.com/library/audits/clanker-3) (covers hooks, extensions, MEV modules, fee locker, LP locker)
+  - [macro_v4_audit_1.pdf](https://github.com/clanker-devco/v4-contracts/blob/main/audits/macro_v4_audit_1.pdf)
+  - [macro_v4_audit_2.pdf](https://github.com/clanker-devco/v4-contracts/blob/main/audits/macro_v4_audit_2.pdf)
+- **Cantina** — [clanker-contracts portfolio](https://cantina.xyz/portfolio/e4db23cd-f46d-4d99-adca-a60941b44f65)
+  - [cantina_v4_audit_1.pdf](https://github.com/clanker-devco/v4-contracts/blob/main/audits/cantina_v4_audit_1.pdf)
+
+The Liquid Protocol fork renames `Clanker*` to `Liquid*` and deploys under its own factory, but the core hook, locker, and extension logic is architecturally identical to the audited codebase. All contracts are verified on Basescan.
 
 ## Attribution
 
