@@ -55,16 +55,6 @@ Liquid Protocol is a token factory that deploys ERC-20 tokens paired with Uniswa
 
 All contracts are verified on Basescan with explicit Liquid Protocol source code.
 
-## Usage
-
-Token deployers call `Liquid::deployToken()` to deploy tokens with configurable:
-- Static or dynamic fee Uniswap V4 pools via custom hooks
-- LP reward splitting between multiple recipients
-- Multiple initial liquidity positions with custom tick ranges
-- Dev buys from the pool during token launch
-- Token vaulting, airdrops, and presale mechanisms via extensions
-- MEV protection via sniper auctions and descending fee curves
-
 ## Contract Architecture
 
 ### Core
@@ -114,35 +104,7 @@ forge build
 forge test
 ```
 
-## Deployment
-
-See [`script/DEPLOY.md`](./script/DEPLOY.md) for the full deployment guide.
-
 Compiler: Solidity 0.8.28, viaIR, optimizer 20,000 runs, EVM target Cancun.
-
-## SDK
-
-The TypeScript SDK for deploying tokens, swapping, and managing rewards is available at **[Liquid-Protocol-Ops/SDK](https://github.com/Liquid-Protocol-Ops/SDK)**.
-
-```bash
-npm install liquid-sdk viem
-```
-
-### Operational Scripts
-
-The SDK includes standalone scripts for testing and operations (require `.env` with `DEPLOYER_KEY`):
-
-| Script | Description |
-|--------|-------------|
-| `test-swap.ts` | Buy tokens with ETH via Universal Router |
-| `test-swap-out.ts` | Sell tokens for ETH via Universal Router |
-| `collect-rewards.ts` | Collect LP fees and claim WETH rewards |
-| `claim-protocol-fees.ts` | Claim protocol fees from the factory |
-| `view-rewards.ts` | View reward config and claimable fees |
-| `update-reward-recipient.ts` | Change a fee recipient address |
-| `update-reward-admin.ts` | Transfer reward admin role |
-
-See the [SDK README](https://github.com/Liquid-Protocol-Ops/SDK#readme) for full API documentation, or the [Rainbow Integration Guide](https://github.com/Liquid-Protocol-Ops/SDK/blob/main/RAINBOW-INTEGRATION-GUIDE.md) for wallet-level swap encoding details.
 
 ## Security
 
