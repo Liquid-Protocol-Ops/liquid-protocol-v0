@@ -128,6 +128,20 @@ The TypeScript SDK for deploying tokens, swapping, and managing rewards is avail
 npm install liquid-sdk viem
 ```
 
+### Operational Scripts
+
+The SDK includes standalone scripts for testing and operations (require `.env` with `DEPLOYER_KEY`):
+
+| Script | Description |
+|--------|-------------|
+| `test-swap.ts` | Buy tokens with ETH via Universal Router |
+| `test-swap-out.ts` | Sell tokens for ETH via Universal Router |
+| `collect-rewards.ts` | Collect LP fees and claim WETH rewards |
+| `claim-protocol-fees.ts` | Claim protocol fees from the factory |
+| `view-rewards.ts` | View reward config and claimable fees |
+| `update-reward-recipient.ts` | Change a fee recipient address |
+| `update-reward-admin.ts` | Transfer reward admin role |
+
 See the [SDK README](https://github.com/Liquid-Protocol-Ops/SDK#readme) for full API documentation, or the [Rainbow Integration Guide](https://github.com/Liquid-Protocol-Ops/SDK/blob/main/RAINBOW-INTEGRATION-GUIDE.md) for wallet-level swap encoding details.
 
 ## Security

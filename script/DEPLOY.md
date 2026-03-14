@@ -165,4 +165,39 @@ Replace `$BASE_RPC_URL` with `$BASE_SEPOLIA_RPC_URL` and `--verifier-url` with `
 - [ ] All contracts show green checkmark on Basescan
 - [ ] `Liquid.owner()` returns expected `OWNER_ADDRESS`
 - [ ] Hooks, lockers, extensions, MEV modules are enabled on factory
+
+### Critical: FeeLocker Depositor Setup
+
+The LP Locker must be registered as an allowed depositor on the FeeLocker, otherwise **all swaps will revert** with `Unauthorized()` when the hook tries to route LP fees through the FeeLocker.
+
+```bash
+# From the owner (multisig):
+cast send $LIQUID_FEE_LOCKER "addDepositor(address)" $LP_LOCKER_FEE_CONVERSION
+```
+
+Without this, the `beforeSwap` hook callback calls `collectRewardsWithoutUnlock` → `storeFees` on the FeeLocker, which checks `allowedDepositors[msg.sender]` and reverts.
+
+### Critical: Set Team Fee Recipient
+
+Protocol fees accumulate as WETH in the factory contract. To claim them, a team fee recipient must be set:
+
+```bash
+# From the owner (multisig):
+cast send $LIQUID_FACTORY "setTeamFeeRecipient(address)" $TEAM_FEE_RECIPIENT
+```
+
+Then claim with:
+
+```bash
+cast send $LIQUID_FACTORY "claimTeamFees(address)" $WETH
+```
+
+### Smoke Test
+
+- [ ] `addDepositor` called on FeeLocker for the LP Locker
+- [ ] `setTeamFeeRecipient` called on Factory
 - [ ] Test a `deployToken()` call on testnet before mainnet
+- [ ] Test a buy swap (ETH → token) via Universal Router
+- [ ] Test a sell swap (token → ETH) via Universal Router
+- [ ] Test `collectRewards` + `claimFees` for creator fees
+- [ ] Test `claimTeamFees` for protocol fees
