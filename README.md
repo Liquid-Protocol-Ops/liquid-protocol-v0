@@ -106,6 +106,10 @@ forge test
 
 Compiler: Solidity 0.8.28, viaIR, optimizer 20,000 runs, EVM target Cancun.
 
+## Documentation
+
+- [Extension Allowlist Process](EXTENSION-ALLOWLIST.md) — how extensions are reviewed, approved, and managed
+
 ## Security
 
 This codebase is forked from [Clanker v4](https://github.com/clanker-devco/v4-contracts), which has been audited by:
