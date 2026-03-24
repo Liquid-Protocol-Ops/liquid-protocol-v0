@@ -2,15 +2,13 @@
 
 Technical specifications for the Liquid Protocol contract system.
 
-## Documents
+Detailed specs are forthcoming. For now, refer to the source code and the top-level [README](../README.md).
 
-| Spec | Status | Description |
-|------|--------|-------------|
-| [Architecture Overview](./architecture.md) | Placeholder | System architecture, module types, and deployment flow |
-| [MEV Protection](./mev-protection.md) | Placeholder | Sniper auction V2 and descending fee mechanics |
-| [Extensions](./extensions.md) | Placeholder | Vault, airdrop, dev buy, and presale specifications |
-| [Fee System](./fee-system.md) | Placeholder | LP fee collection, conversion, and distribution |
+## Planned Documents
 
-## Note
-
-The original Clanker v4.0 specs have been removed as they referenced deprecated contracts. These placeholders will be populated with Liquid Protocol-specific documentation.
+| Spec | Description |
+|------|-------------|
+| Architecture Overview | System architecture, module types, and deployment flow |
+| MEV Protection | Sniper auction V2 and descending fee mechanics |
+| Extensions | Vault, airdrop, dev buy, and presale specifications |
+| Fee System | LP fee collection, conversion, and distribution |
