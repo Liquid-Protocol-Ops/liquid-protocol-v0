@@ -1,0 +1,48 @@
+name: Bug Report
+description: Report a bug or regression.
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please provide enough detail to reproduce the issue.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and the impact.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal reproducible example.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Foundry version, Solidity version, chain ID, etc.
+      placeholder: |
+        - Foundry: forge 1.x
+        - Solidity: 0.8.28
+        - Chain: Base mainnet (8453)
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or traces
+      description: Add any relevant forge test output, traces, or revert reasons.
+      render: shell
+    validations:
+      required: false
