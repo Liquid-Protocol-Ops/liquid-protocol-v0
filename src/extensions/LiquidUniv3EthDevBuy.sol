@@ -10,7 +10,9 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
-import {IUniversalRouter} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
+import {
+    IUniversalRouter
+} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -104,16 +106,16 @@ contract LiquidUniv3EthDevBuy is ReentrancyGuard, ILiquidUniv3EthDevBuy {
         if (pairedToken != address(weth)) {
             // the router will find the correct pool based on the fee/token pairing
             // swap from weth to paired token
-            ISwapRouterV3.ExactInputSingleParams memory swapParams = ISwapRouterV3
-                .ExactInputSingleParams({
-                tokenIn: address(weth), // The token we are exchanging from (ETH wrapped as WETH)
-                tokenOut: pairedToken, // The token we are exchanging to
-                fee: uniV3Fee, // The pool fee
-                recipient: address(this), // The recipient address
-                amountIn: msg.value, // The amount of ETH (WETH) to be swapped
-                amountOutMinimum: pairedTokenAmountOutMinimum, // Minimum amount to receive
-                sqrtPriceLimitX96: 0 // No price limit
-            });
+            ISwapRouterV3.ExactInputSingleParams memory swapParams =
+                ISwapRouterV3.ExactInputSingleParams({
+                    tokenIn: address(weth), // The token we are exchanging from (ETH wrapped as WETH)
+                    tokenOut: pairedToken, // The token we are exchanging to
+                    fee: uniV3Fee, // The pool fee
+                    recipient: address(this), // The recipient address
+                    amountIn: msg.value, // The amount of ETH (WETH) to be swapped
+                    amountOutMinimum: pairedTokenAmountOutMinimum, // Minimum amount to receive
+                    sqrtPriceLimitX96: 0 // No price limit
+                });
 
             // execute the swap to get pair tokens for the initial buy
             amountPairedToken = uint128(swapRouter.exactInputSingle{value: msg.value}(swapParams));
@@ -181,7 +183,9 @@ contract LiquidUniv3EthDevBuy is ReentrancyGuard, ILiquidUniv3EthDevBuy {
 
         universalRouter.execute{
             value: Currency.unwrap(poolKey.currency0) == address(0) ? amountIn : 0
-        }(commands, inputs, block.timestamp);
+        }(
+            commands, inputs, block.timestamp
+        );
 
         uint256 tokenOutAfter = IERC20(tokenOut).balanceOf(address(this));
 
