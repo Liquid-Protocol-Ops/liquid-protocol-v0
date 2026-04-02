@@ -116,13 +116,11 @@ contract LiquidPresaleAllowlist is ILiquidPresaleAllowlist {
         }
 
         // verify proof
-        if (
-            !MerkleProof.verify(
+        if (!MerkleProof.verify(
                 allowlistProof.proof,
                 allowlists[presaleId].merkleRoot,
                 keccak256(bytes.concat(keccak256(abi.encode(buyer, allowlistProof.allowedAmount))))
-            )
-        ) {
+            )) {
             revert InvalidProof();
         }
 

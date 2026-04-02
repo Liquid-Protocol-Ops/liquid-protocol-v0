@@ -5,7 +5,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {ILiquidHookV2} from "../../hooks/interfaces/ILiquidHookV2.sol";
-import {IUniversalRouter} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
+import {
+    IUniversalRouter
+} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
@@ -22,26 +24,26 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {ILiquidSniperAuctionV0} from "../interfaces/ILiquidSniperAuctionV0.sol";
 
 /*
- .--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--. 
+ .--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--.
 / .. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \
 \ \/\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ \/ /
- \/ /`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'\/ / 
- / /\  ````````````````````````````````````````````````````````````````````````````````````  / /\ 
+ \/ /`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'\/ /
+ / /\  ````````````````````````````````````````````````````````````````````````````````````  / /\
 / /\ \ ```````````````````````````````````````````````````````````````````````````````````` / /\ \
 \ \/ / ```````::::::::``:::````````````:::`````::::````:::`:::````:::`::::::::::`:::::::::` \ \/ /
- \/ /  `````:+:````:+:`:+:``````````:+:`:+:```:+:+:```:+:`:+:```:+:``:+:````````:+:````:+:`  \/ / 
- / /\  ````+:+````````+:+`````````+:+```+:+``:+:+:+``+:+`+:+``+:+```+:+````````+:+````+:+``  / /\ 
+ \/ /  `````:+:````:+:`:+:``````````:+:`:+:```:+:+:```:+:`:+:```:+:``:+:````````:+:````:+:`  \/ /
+ / /\  ````+:+````````+:+`````````+:+```+:+``:+:+:+``+:+`+:+``+:+```+:+````````+:+````+:+``  / /\
 / /\ \ ```+#+````````+#+````````+#++:++#++:`+#+`+:+`+#+`+#++:++````+#++:++#```+#++:++#:```` / /\ \
 \ \/ / ``+#+````````+#+````````+#+`````+#+`+#+``+#+#+#`+#+``+#+```+#+````````+#+````+#+```` \ \/ /
- \/ /  `#+#````#+#`#+#````````#+#`````#+#`#+#```#+#+#`#+#```#+#``#+#````````#+#````#+#`````  \/ / 
- / /\  `########``##########`###`````###`###````####`###````###`##########`###````###``````  / /\ 
+ \/ /  `#+#````#+#`#+#````````#+#`````#+#`#+#```#+#+#`#+#```#+#``#+#````````#+#````#+#`````  \/ /
+ / /\  `########``##########`###`````###`###````####`###````###`##########`###````###``````  / /\
 / /\ \ ```````````````````````````````````````````````````````````````````````````````````` / /\ \
 \ \/ / ```````````````````````````````````````````````````````````````````````````````````` \ \/ /
- \/ /  ````````````````````````````````````````````````````````````````````````````````````  \/ / 
- / /\.--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--./ /\ 
+ \/ /  ````````````````````````````````````````````````````````````````````````````````````  \/ /
+ / /\.--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--..--./ /\
 / /\ \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \.. \/\ \
 \ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `'\ `' /
- `--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--' 
+ `--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'`--'
 */
 
 // shared util for snipers to bid in LiquidSniperAuction V0 and V2 auctions
@@ -105,8 +107,7 @@ contract LiquidSniperUtilV2 is ReentrancyGuard {
         PoolId poolId = swapParams.poolKey.toId();
 
         // check that the intended round is being bid in
-        if (round != liquidSniperAuction.round(poolId) || round > liquidSniperAuction.maxRounds())
-        {
+        if (round != liquidSniperAuction.round(poolId) || round > liquidSniperAuction.maxRounds()) {
             revert InvalidRound();
         }
 
@@ -151,16 +152,12 @@ contract LiquidSniperUtilV2 is ReentrancyGuard {
         swapParams.hookData = abi.encode(address(this));
 
         // check if the auction is for v1 or v2 hook, v2 has a different data structure
-        if (
-            ILiquidHookV2(address(swapParams.poolKey.hooks)).supportsInterface(
-                type(ILiquidHookV2).interfaceId
-            )
-        ) {
+        if (ILiquidHookV2(address(swapParams.poolKey.hooks))
+                .supportsInterface(type(ILiquidHookV2).interfaceId)) {
             // v2 hook
             swapParams.hookData = abi.encode(
                 ILiquidHookV2.PoolSwapData({
-                    mevModuleSwapData: abi.encode(address(this)),
-                    poolExtensionSwapData: ""
+                    mevModuleSwapData: abi.encode(address(this)), poolExtensionSwapData: ""
                 })
             );
         } else {
