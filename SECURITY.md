@@ -6,7 +6,7 @@ This repository contains the smart contracts for **Liquid Protocol** deployed on
 
 ## Reporting a Vulnerability
 
-If you believe you have found a security issue, **please report it privately**.
+If you believe you have found a security issue, **please report it privately to slaterg@mog.capital or mikeongay@mog.capital**.
 
 ### Contact
 
