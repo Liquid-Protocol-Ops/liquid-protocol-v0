@@ -139,7 +139,9 @@ contract Liquid is OwnerAdmins, ReentrancyGuard, ILiquid {
         external
         returns (address tokenAddress)
     {
-        if (block.chainid == tokenConfig.originatingChainId) revert OnlyNonOriginatingChains();
+        if (block.chainid == tokenConfig.originatingChainId) {
+            revert OnlyNonOriginatingChains();
+        }
         tokenAddress = LiquidDeployer.deployToken(tokenConfig, TOKEN_SUPPLY);
     }
 
@@ -226,9 +228,8 @@ contract Liquid is OwnerAdmins, ReentrancyGuard, ILiquid {
         }
 
         // initialize the mev module
-        ILiquidHook(deploymentConfig.poolConfig.hook).initializeMevModule(
-            poolKey, deploymentConfig.mevModuleConfig.mevModuleData
-        );
+        ILiquidHook(deploymentConfig.poolConfig.hook)
+            .initializeMevModule(poolKey, deploymentConfig.mevModuleConfig.mevModuleData);
     }
 
     function _initializePool(
@@ -243,15 +244,16 @@ contract Liquid is OwnerAdmins, ReentrancyGuard, ILiquid {
         }
 
         // call into the hook to initialize the pool
-        poolKey = ILiquidHook(poolConfig.hook).initializePool(
-            newToken,
-            poolConfig.pairedToken,
-            poolConfig.tickIfToken0IsLiquid,
-            poolConfig.tickSpacing,
-            locker,
-            mevModule,
-            poolConfig.poolData
-        );
+        poolKey = ILiquidHook(poolConfig.hook)
+            .initializePool(
+                newToken,
+                poolConfig.pairedToken,
+                poolConfig.tickIfToken0IsLiquid,
+                poolConfig.tickSpacing,
+                locker,
+                mevModule,
+                poolConfig.poolData
+            );
     }
 
     function _initializeLiquidity(
@@ -270,9 +272,8 @@ contract Liquid is OwnerAdmins, ReentrancyGuard, ILiquid {
         IERC20(token).approve(address(lockerConfig.locker), poolSupply);
 
         // have the locker mint liquidity
-        ILiquidLpLocker(lockerConfig.locker).placeLiquidity(
-            lockerConfig, poolConfig, poolKey, poolSupply, token
-        );
+        ILiquidLpLocker(lockerConfig.locker)
+            .placeLiquidity(lockerConfig, poolConfig, poolKey, poolSupply, token);
     }
 
     function _prepareExtensions(ExtensionConfig[] memory extensions)
@@ -338,9 +339,10 @@ contract Liquid is OwnerAdmins, ReentrancyGuard, ILiquid {
             IERC20(token).approve(deploymentConfig.extensionConfigs[i].extension, extensionSupply);
 
             // trigger the extension
-            ILiquidExtension(deploymentConfig.extensionConfigs[i].extension).receiveTokens{
-                value: deploymentConfig.extensionConfigs[i].msgValue
-            }(deploymentConfig, poolKey, token, extensionSupply, i);
+            ILiquidExtension(deploymentConfig.extensionConfigs[i].extension)
+            .receiveTokens{value: deploymentConfig.extensionConfigs[i].msgValue}(
+                deploymentConfig, poolKey, token, extensionSupply, i
+            );
 
             emit ExtensionTriggered(
                 deploymentConfig.extensionConfigs[i].extension,

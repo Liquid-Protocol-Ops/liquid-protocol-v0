@@ -31,6 +31,13 @@ The following deployed contracts do not yet have ABI files in this directory. Ru
 | `LiquidSniperAuctionV2` | [`0x187e8627c02c58F31831953C1268e157d3BfCefd`](https://basescan.org/address/0x187e8627c02c58F31831953C1268e157d3BfCefd) |
 | `LiquidMevDescendingFees` | [`0x8D6B080e48756A99F3893491D556B5d6907b6910`](https://basescan.org/address/0x8D6B080e48756A99F3893491D556B5d6907b6910) |
 | `LiquidSniperUtilV2` | [`0x2B6cd5Be183c388Dd0074d53c52317df1414cd9f`](https://basescan.org/address/0x2B6cd5Be183c388Dd0074d53c52317df1414cd9f) |
+| `LiquidPoolExtensionAllowlist` | [`0xb614167d79aDBaA9BA35d05fE1d5542d7316Ccaa`](https://basescan.org/address/0xb614167d79aDBaA9BA35d05fE1d5542d7316Ccaa) |
+
+To generate these ABIs, run:
+```bash
+forge build
+# Then copy from out/<ContractName>.sol/<ContractName>.json
+```
 
 ## Archived ABIs
 

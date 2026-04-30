@@ -1,0 +1,13 @@
+name: Pull request
+on:
+  pull_request:
+
+concurrency:
+  group: pr-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    name: QA
+    uses: ./.github/workflows/qa.yml
+    secrets: inherit

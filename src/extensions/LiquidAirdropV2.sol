@@ -178,13 +178,11 @@ contract LiquidAirdropV2 is ReentrancyGuard, ILiquidAirdropV2 {
         }
 
         // verify proof
-        if (
-            !MerkleProof.verifyCalldata(
+        if (!MerkleProof.verifyCalldata(
                 proof,
                 airdrop.merkleRoot,
                 keccak256(bytes.concat(keccak256(abi.encode(recipient, allocatedAmount))))
-            )
-        ) {
+            )) {
             revert InvalidProof();
         }
 

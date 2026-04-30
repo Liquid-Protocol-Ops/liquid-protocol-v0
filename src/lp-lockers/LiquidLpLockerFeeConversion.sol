@@ -15,7 +15,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 
-import {IUniversalRouter} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
+import {
+    IUniversalRouter
+} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
@@ -87,9 +89,9 @@ contract LiquidLpLockerFeeConversion is ILiquidLpLockerFeeConversion, Reentrancy
         address token
     ) external onlyFactory nonReentrant returns (uint256 positionId) {
         // decode the extra locker data
-        FeeIn[] memory lpFeeConversionPreferences = abi.decode(
-            lockerConfig.lockerData, (ILiquidLpLockerFeeConversion.LpFeeConversionInfo)
-        ).feePreference;
+        FeeIn[] memory lpFeeConversionPreferences =
+        abi.decode(lockerConfig.lockerData, (ILiquidLpLockerFeeConversion.LpFeeConversionInfo))
+        .feePreference;
 
         // ensure that we don't already have a reward for this token
         if (_tokenRewards[token].positionId != 0) {
@@ -318,8 +320,8 @@ contract LiquidLpLockerFeeConversion is ILiquidLpLockerFeeConversion, Reentrancy
             ILiquidHook(address(_tokenRewards[token].poolKey.hooks)).poolCreationTimestamp(poolId);
         if (
             poolCreationTimestamp
-                + ILiquidHook(address(_tokenRewards[token].poolKey.hooks)).MAX_MEV_MODULE_DELAY()
-                <= block.timestamp
+                    + ILiquidHook(address(_tokenRewards[token].poolKey.hooks))
+                        .MAX_MEV_MODULE_DELAY() <= block.timestamp
         ) {
             return false;
         }
@@ -477,10 +479,16 @@ contract LiquidLpLockerFeeConversion is ILiquidLpLockerFeeConversion, Reentrancy
         if (toSwapCount > 0) {
             swapAmountOut = withoutUnlock
                 ? _uniSwapUnlocked(
-                    tokenRewardInfo.poolKey, address(rewardToken), tokenToSwapInto, uint128(tokenToSwap)
+                    tokenRewardInfo.poolKey,
+                    address(rewardToken),
+                    tokenToSwapInto,
+                    uint128(tokenToSwap)
                 )
                 : _uniSwapLocked(
-                    tokenRewardInfo.poolKey, address(rewardToken), tokenToSwapInto, uint128(tokenToSwap)
+                    tokenRewardInfo.poolKey,
+                    address(rewardToken),
+                    tokenToSwapInto,
+                    uint128(tokenToSwap)
                 );
 
             // record amount distributed so far for dust handling
@@ -578,7 +586,9 @@ contract LiquidLpLockerFeeConversion is ILiquidLpLockerFeeConversion, Reentrancy
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
             zeroForOne: zeroForOne,
             amountSpecified: -int256(int128(amountIn)),
-            sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
+            sqrtPriceLimitX96: zeroForOne
+                ? TickMath.MIN_SQRT_PRICE + 1
+                : TickMath.MAX_SQRT_PRICE - 1
         });
 
         // record before token balance
