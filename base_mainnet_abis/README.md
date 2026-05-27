@@ -26,6 +26,12 @@ These are structured as `ContractName.sol/ContractName.json` following the Found
 | `LiquidPresaleAllowlist` | [`0xCBb4ccC4B94E23233c14759f4F9629F7dD01f10B`](https://basescan.org/address/0xCBb4ccC4B94E23233c14759f4F9629F7dD01f10B) |
 | `LiquidPoolExtensionAllowlist` | [`0xb614167d79aDBaA9BA35d05fE1d5542d7316Ccaa`](https://basescan.org/address/0xb614167d79aDBaA9BA35d05fE1d5542d7316Ccaa) |
 
+To generate these ABIs, run:
+```bash
+forge build
+# Then copy from out/<ContractName>.sol/<ContractName>.json
+```
+
 ## Archived ABIs
 
 ABIs for renamed or removed contracts have been moved to [`archive/stale-abis/`](../archive/stale-abis/).

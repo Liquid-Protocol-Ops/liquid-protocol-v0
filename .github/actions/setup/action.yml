@@ -1,0 +1,11 @@
+name: "Setup action"
+description: "Setup repository with Foundry toolchain"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+    - name: Install dependencies
+      shell: bash
+      run: forge install
