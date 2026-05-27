@@ -27,8 +27,12 @@ contract Router is Ownable {
 
     error PoolNotSet();
     error SlippageExceeded();
+    error ZeroAddress();
 
     constructor(address _vault, address _weth, address _vvvStaking) Ownable(msg.sender) {
+        if (_vault == address(0) || _weth == address(0) || _vvvStaking == address(0)) {
+            revert ZeroAddress();
+        }
         vault = IInferenceVault(_vault);
         weth = _weth;
         vvvStaking = _vvvStaking;
