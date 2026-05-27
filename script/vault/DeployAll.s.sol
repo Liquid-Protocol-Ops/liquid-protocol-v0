@@ -81,16 +81,14 @@ contract DeployAll is Script {
             IMorpho(MORPHO_BLUE).isLltvEnabled(lltv),
             "DeployAll: 77e16 LLTV not enabled on Morpho Blue"
         );
-        IMorpho(MORPHO_BLUE)
-            .createMarket(
-                MarketParams({
-                    loanToken: DIEM,
-                    collateralToken: address(vault),
-                    oracle: oracle,
-                    irm: ADAPTIVE_CURVE_IRM,
-                    lltv: lltv
-                })
-            );
+        MarketParams memory params = MarketParams({
+            loanToken: DIEM,
+            collateralToken: address(vault),
+            oracle: oracle,
+            irm: ADAPTIVE_CURVE_IRM,
+            lltv: lltv
+        });
+        IMorpho(MORPHO_BLUE).createMarket(params);
         console.log("Morpho wstDIEM/DIEM market created with LLTV:", lltv);
 
         // Transfer ownership of all mutable contracts to Safe multisig
