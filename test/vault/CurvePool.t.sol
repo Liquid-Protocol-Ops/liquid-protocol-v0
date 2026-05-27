@@ -65,7 +65,7 @@ contract CurvePoolTest is Test {
             "wstDIEM-LP",   // symbol (String[10]: 10 chars — Vyper hard limit)
             coins,
             300,          // A = 300
-            3_000_000,    // fee = 3bps in 1e10 units
+            30_000_000,   // fee = 30bps / 0.3% in 1e10 units
             8 * 10 ** 10, // off-peg fee multiplier = 8x
             600,          // MA window = 600s (10 min)
             0,            // implementation_idx = 0 (standard)
