@@ -74,22 +74,23 @@ contract FeeRouter is Ownable {
 
     // --- Harvest paths ---
 
-    /// @notice Swap pending WETH → wstDIEM (stub; V4 swap wired in Phase E), then route to Curve VOL.
+    /// @notice Flush all pending fee tokens to Curve VOL.
     function harvest() external {
+        // WETH path: swap → wstDIEM (stub until Phase E V4 wiring)
         uint256 pending = _pendingWETH;
-        if (pending == 0) return;
-        _pendingWETH = 0;
-        uint256 wstDIEMOut = _swapWETHForWstDIEM(pending);
-        if (wstDIEMOut > 0) {
-            _addWstDIEMToVOL(wstDIEMOut);
-            emit WETHHarvested(pending, wstDIEMOut);
+        if (pending > 0) {
+            _pendingWETH = 0;
+            uint256 wstDIEMOut = _swapWETHForWstDIEM(pending);
+            if (wstDIEMOut > 0) {
+                _addWstDIEMToVOL(wstDIEMOut);
+                emit WETHHarvested(pending, wstDIEMOut);
+            }
         }
 
-        // Route any wstDIEM accumulated via receivewstDIEM to Curve VOL as well.
+        // wstDIEM path: flush accumulated receivewstDIEM balance to Curve VOL
         uint256 heldWstDIEM = IERC20(address(vault)).balanceOf(address(this));
         if (heldWstDIEM > 0) {
-            _addWstDIEMToVOL(heldWstDIEM);
-            emit WstDIEMHarvested(heldWstDIEM);
+            _addWstDIEMToVOL(heldWstDIEM); // _addWstDIEMToVOL emits WstDIEMHarvested
         }
     }
 
