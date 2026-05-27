@@ -66,9 +66,7 @@ contract LiquidPresaleEthToCreator is ReentrancyGuard, ILiquidPresaleEthToCreato
         _;
     }
 
-    constructor(address owner_, address factory_, address liquidFeeRecipient_)
-        OwnerAdmins(owner_)
-    {
+    constructor(address owner_, address factory_, address liquidFeeRecipient_) OwnerAdmins(owner_) {
         factory = ILiquid(factory_);
         _presaleId = 1;
         liquidFeeRecipient = liquidFeeRecipient_;
@@ -140,16 +138,16 @@ contract LiquidPresaleEthToCreator is ReentrancyGuard, ILiquidPresaleEthToCreato
         // ensure presale is present the last extension in the token's deployment config
         if (
             deploymentConfig.extensionConfigs.length == 0
-                || deploymentConfig.extensionConfigs[deploymentConfig.extensionConfigs.length - 1]
-                    .extension != address(this)
+                || deploymentConfig.extensionConfigs[deploymentConfig.extensionConfigs.length
+                            - 1].extension != address(this)
         ) {
             revert PresaleNotLastExtension();
         }
 
         // ensure presale supply is not zero
         if (
-            deploymentConfig.extensionConfigs[deploymentConfig.extensionConfigs.length - 1]
-                .extensionBps == 0
+            deploymentConfig.extensionConfigs[deploymentConfig.extensionConfigs.length
+                        - 1].extensionBps == 0
         ) {
             revert InvalidPresaleSupply();
         }
@@ -184,14 +182,13 @@ contract LiquidPresaleEthToCreator is ReentrancyGuard, ILiquidPresaleEthToCreato
 
         // initialize allowlist checker
         if (allowlist != address(0)) {
-            ILiquidPresaleAllowlist(allowlist).initialize(
-                presaleId, presaleOwner, allowlistInitializationData
-            );
+            ILiquidPresaleAllowlist(allowlist)
+                .initialize(presaleId, presaleOwner, allowlistInitializationData);
         }
 
         // set token deployment config's presale ID
-        deploymentConfig.extensionConfigs[deploymentConfig.extensionConfigs.length - 1]
-            .extensionData = abi.encode(presaleId);
+        deploymentConfig.extensionConfigs[deploymentConfig.extensionConfigs.length
+                - 1].extensionData = abi.encode(presaleId);
 
         // note: it is recommended to simulate a call to deployToken() with the deploymentConfig
         // to ensure that the token will fail with 'NotExpectingTokenDeployment()',
@@ -247,10 +244,9 @@ contract LiquidPresaleEthToCreator is ReentrancyGuard, ILiquidPresaleEthToCreato
         // 3. min eth is hit and the presale owner wants to end the presale early (must be in active state)
         bool presaleCanEnd = presale.status == PresaleStatus.SuccessfulMaximumHit
             || presale.status == PresaleStatus.SuccessfulMinimumHit
-            || (
-                presale.status == PresaleStatus.Active && msg.sender == presale.presaleOwner
-                    && presale.minEthGoal <= presale.ethRaised
-            );
+            || (presale.status == PresaleStatus.Active
+                && msg.sender == presale.presaleOwner
+                && presale.minEthGoal <= presale.ethRaised);
         if (!presaleCanEnd) revert PresaleNotReadyForDeployment();
 
         // if presale's end time has passed without a successful deployment, set the presale to failed
@@ -489,8 +485,9 @@ contract LiquidPresaleEthToCreator is ReentrancyGuard, ILiquidPresaleEthToCreato
         uint256 extensionSupply,
         uint256 extensionIndex
     ) external payable nonReentrant onlyFactory {
-        uint256 presaleId =
-            abi.decode(deploymentConfig.extensionConfigs[extensionIndex].extensionData, (uint256));
+        uint256 presaleId = abi.decode(
+            deploymentConfig.extensionConfigs[extensionIndex].extensionData, (uint256)
+        );
         Presale storage presale = presaleState[presaleId];
 
         // ensure that the msgValue is zero

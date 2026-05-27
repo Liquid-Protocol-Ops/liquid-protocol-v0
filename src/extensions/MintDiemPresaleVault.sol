@@ -50,12 +50,12 @@ pragma solidity ^0.8.28;
  *   4. After depositDeadline: depositors call claimTokens(); anyone can call burnUnclaimed()
  */
 
-import {ILiquidExtension} from "../interfaces/ILiquidExtension.sol";
 import {ILiquid} from "../interfaces/ILiquid.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {ILiquidExtension} from "../interfaces/ILiquidExtension.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 // VVV token is a plain ERC-20; no mintDiem here.
@@ -88,24 +88,24 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
 
     // ── Immutable config ─────────────────────────────────────────────────
 
-    IVVV        public immutable vvv;            // VVV ERC-20 (0xacfE6019...)
-    IVVVStaking public immutable vvvStaking;     // VVV staking / sVVV (0x321b7ff...)
-    IERC20      public immutable diem;           // DIEM ERC-20 (0xF4d97F2...)
-    address     public immutable agentWallet;    // receives DIEM routed through the vault
-    address     public immutable factory;        // only caller allowed to invoke receiveTokens
-    address     public immutable protocol;       // autonomopoly fee recipient
-    uint256     public immutable protocolFeeBps; // protocol fee in bps (e.g. 200 = 2%)
+    IVVV public immutable vvv; // VVV ERC-20 (0xacfE6019...)
+    IVVVStaking public immutable vvvStaking; // VVV staking / sVVV (0x321b7ff...)
+    IERC20 public immutable diem; // DIEM ERC-20 (0xF4d97F2...)
+    address public immutable agentWallet; // receives DIEM routed through the vault
+    address public immutable factory; // only caller allowed to invoke receiveTokens
+    address public immutable protocol; // autonomopoly fee recipient
+    uint256 public immutable protocolFeeBps; // protocol fee in bps (e.g. 200 = 2%)
 
-    uint256     public immutable diemTarget;     // 100e18 — full allocation threshold
-    uint256     public immutable depositWindow;  // seconds the deposit window stays open
+    uint256 public immutable diemTarget; // 100e18 — full allocation threshold
+    uint256 public immutable depositWindow; // seconds the deposit window stays open
 
     // ── Mutable state ────────────────────────────────────────────────────
 
-    address public token;               // agent token (set on receiveTokens)
-    uint256 public extensionSupply;     // max token airdrop (set on receiveTokens)
-    uint256 public depositDeadline;     // block.timestamp + depositWindow
+    address public token; // agent token (set on receiveTokens)
+    uint256 public extensionSupply; // max token airdrop (set on receiveTokens)
+    uint256 public depositDeadline; // block.timestamp + depositWindow
 
-    uint256 public totalDiemMinted;     // cumulative DIEM routed (VVV-converted + direct DIEM)
+    uint256 public totalDiemMinted; // cumulative DIEM routed (VVV-converted + direct DIEM)
 
     // Informational (not used in share formula)
     uint256 public totalVvvDeposited;
@@ -121,7 +121,9 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
 
     // ── Events ───────────────────────────────────────────────────────────
 
-    event VvvDeposited(address indexed depositor, uint256 vvvAmount, uint256 diemMinted, uint256 protocolFee);
+    event VvvDeposited(
+        address indexed depositor, uint256 vvvAmount, uint256 diemMinted, uint256 protocolFee
+    );
     event DiemDeposited(address indexed depositor, uint256 diemAmount, uint256 protocolFee);
     event TokensClaimed(address indexed depositor, uint256 tokenAmount);
     event UnclaimedBurned(uint256 tokenAmount);
@@ -146,23 +148,24 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
         address _vvvStaking,
         address _diem,
         address _agentWallet,
-        uint256 _diemTarget,    // 100e18
+        uint256 _diemTarget, // 100e18
         uint256 _depositWindow, // MIN_DEPOSIT_WINDOW (2h) – MAX_DEPOSIT_WINDOW (30d); default 24h
-        address _factory,       // Liquid Protocol factory — sole caller of receiveTokens
-        address _protocol,      // autonomopoly fee recipient
+        address _factory, // Liquid Protocol factory — sole caller of receiveTokens
+        address _protocol, // autonomopoly fee recipient
         uint256 _protocolFeeBps // fee in bps (e.g. 200 = 2%); 0 disables the fee
     ) {
-        if (_depositWindow < MIN_DEPOSIT_WINDOW || _depositWindow > MAX_DEPOSIT_WINDOW)
+        if (_depositWindow < MIN_DEPOSIT_WINDOW || _depositWindow > MAX_DEPOSIT_WINDOW) {
             revert InvalidDepositWindow();
-        vvv             = IVVV(_vvv);
-        vvvStaking      = IVVVStaking(_vvvStaking);
-        diem            = IERC20(_diem);
-        agentWallet     = _agentWallet;
-        diemTarget      = _diemTarget;
-        depositWindow   = _depositWindow;
-        factory         = _factory;
-        protocol        = _protocol;
-        protocolFeeBps  = _protocolFeeBps;
+        }
+        vvv = IVVV(_vvv);
+        vvvStaking = IVVVStaking(_vvvStaking);
+        diem = IERC20(_diem);
+        agentWallet = _agentWallet;
+        diemTarget = _diemTarget;
+        depositWindow = _depositWindow;
+        factory = _factory;
+        protocol = _protocol;
+        protocolFeeBps = _protocolFeeBps;
     }
 
     // ── ILiquidExtension ─────────────────────────────────────────────────
@@ -177,7 +180,7 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
         if (msg.sender != factory) revert NotFactory();
         require(token == address(0), "Already initialized");
         IERC20(_token).transferFrom(msg.sender, address(this), _extensionSupply);
-        token           = _token;
+        token = _token;
         extensionSupply = _extensionSupply;
         depositDeadline = block.timestamp + depositWindow;
     }
@@ -201,10 +204,10 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
      * @param minDiemOut  Minimum DIEM from mintDiem (slippage guard; 0 = no guard).
      */
     function deposit(uint256 vvvAmount, uint256 minDiemOut) external nonReentrant {
-        if (token == address(0))                revert NotInitialized();
+        if (token == address(0)) revert NotInitialized();
         if (block.timestamp >= depositDeadline) revert DepositWindowClosed();
-        if (vvvAmount == 0)                     revert ZeroDeposit();
-        if (totalDiemMinted >= diemTarget)      revert DiemTargetReached();
+        if (vvvAmount == 0) revert ZeroDeposit();
+        if (totalDiemMinted >= diemTarget) revert DiemTargetReached();
 
         // 1. Pull VVV from depositor
         vvv.safeTransferFrom(msg.sender, address(this), vvvAmount);
@@ -225,10 +228,10 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
         uint256 diemMinted = diem.balanceOf(address(this)) - diemBefore;
 
         // 5. Effects — all state before transfers (CEI)
-        totalDiemMinted             += diemMinted;
+        totalDiemMinted += diemMinted;
         diemContributed[msg.sender] += diemMinted;
-        vvvDeposited[msg.sender]    += vvvAmount;
-        totalVvvDeposited           += vvvAmount;
+        vvvDeposited[msg.sender] += vvvAmount;
+        totalVvvDeposited += vvvAmount;
 
         // 6. Split DIEM: protocol fee → protocol, remainder → agent
         _distributeDiem(diemMinted);
@@ -245,19 +248,19 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
      * @param diemAmount  DIEM to deposit (pre-approved to this vault).
      */
     function depositDIEM(uint256 diemAmount) external nonReentrant {
-        if (token == address(0))                     revert NotInitialized();
-        if (block.timestamp >= depositDeadline)      revert DepositWindowClosed();
-        if (diemAmount == 0)                         revert ZeroDeposit();
-        if (totalDiemMinted >= diemTarget)           revert DiemTargetReached();
+        if (token == address(0)) revert NotInitialized();
+        if (block.timestamp >= depositDeadline) revert DepositWindowClosed();
+        if (diemAmount == 0) revert ZeroDeposit();
+        if (totalDiemMinted >= diemTarget) revert DiemTargetReached();
         if (totalDiemMinted + diemAmount > diemTarget) revert WouldExceedCap();
 
         // 1. Pull DIEM from depositor
         diem.safeTransferFrom(msg.sender, address(this), diemAmount);
 
         // 2. Effects
-        totalDiemMinted             += diemAmount;
+        totalDiemMinted += diemAmount;
         diemContributed[msg.sender] += diemAmount;
-        diemDeposited[msg.sender]   += diemAmount;
+        diemDeposited[msg.sender] += diemAmount;
 
         // 3. Split DIEM: protocol fee → protocol, remainder → agent
         _distributeDiem(diemAmount);
@@ -274,9 +277,9 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
      * depositorShare      = diemContributed[msg.sender] * effectiveAllocation / totalDiemMinted
      */
     function claimTokens() external {
-        if (block.timestamp < depositDeadline)   revert DepositWindowOpen();
-        if (tokensClaimed[msg.sender])           revert AlreadyClaimed();
-        if (diemContributed[msg.sender] == 0)    revert NothingToMint();
+        if (block.timestamp < depositDeadline) revert DepositWindowOpen();
+        if (tokensClaimed[msg.sender]) revert AlreadyClaimed();
+        if (diemContributed[msg.sender] == 0) revert NothingToMint();
 
         tokensClaimed[msg.sender] = true;
 
@@ -300,7 +303,7 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
         burnExecuted = true;
 
         uint256 effective = effectiveAllocation();
-        uint256 toBurn    = extensionSupply - effective;
+        uint256 toBurn = extensionSupply - effective;
         if (toBurn > 0) {
             IERC20(token).safeTransfer(address(0xdead), toBurn);
         }
@@ -335,7 +338,7 @@ contract MintDiemPresaleVault is ILiquidExtension, ReentrancyGuard {
     }
 
     function _distributeDiem(uint256 amount) internal {
-        uint256 fee      = _protocolFee(amount);
+        uint256 fee = _protocolFee(amount);
         uint256 agentAmt = amount - fee;
         if (fee > 0) diem.safeTransfer(protocol, fee);
         diem.safeTransfer(agentWallet, agentAmt);

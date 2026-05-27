@@ -1,32 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {InferenceVault} from "../../src/vault/InferenceVault.sol";
+import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Test} from "forge-std/Test.sol";
 
 contract InferenceVaultTest is Test {
     InferenceVault vault;
     ERC20Mock diem;
 
-    address treasury  = makeAddr("treasury");
+    address treasury = makeAddr("treasury");
     address feeRouter = makeAddr("feeRouter");
-    address alice     = makeAddr("alice");
-    address bob       = makeAddr("bob");
+    address alice = makeAddr("alice");
+    address bob = makeAddr("bob");
 
     function setUp() public {
         diem = new ERC20Mock();
         vault = new InferenceVault(address(diem), treasury, address(this));
         vault.setFeeRouter(feeRouter);
 
-        diem.mint(alice,     1_000e18);
-        diem.mint(bob,       1_000e18);
+        diem.mint(alice, 1000e18);
+        diem.mint(bob, 1000e18);
         diem.mint(feeRouter, 10_000e18);
 
-        vm.prank(alice);     diem.approve(address(vault), type(uint256).max);
-        vm.prank(bob);       diem.approve(address(vault), type(uint256).max);
-        vm.prank(feeRouter); diem.approve(address(vault), type(uint256).max);
+        vm.prank(alice);
+        diem.approve(address(vault), type(uint256).max);
+        vm.prank(bob);
+        diem.approve(address(vault), type(uint256).max);
+        vm.prank(feeRouter);
+        diem.approve(address(vault), type(uint256).max);
     }
 
     // --- Core deposit ---
@@ -40,7 +43,7 @@ contract InferenceVaultTest is Test {
 
     function test_depositFee_lowTier_10bps() public {
         vm.prank(alice);
-        vault.deposit(1_000e18, alice);
+        vault.deposit(1000e18, alice);
         // 0.1% fee = 1 DIEM worth of shares goes to treasury
         assertGt(vault.balanceOf(treasury), 0, "treasury receives fee shares");
     }
@@ -148,9 +151,11 @@ contract InferenceVaultTest is Test {
         vault.deposit(100e18, bob);
 
         uint256 rate0 = vault.convertToAssets(1e18);
-        vm.prank(feeRouter); vault.creditDIEM(20e18);
+        vm.prank(feeRouter);
+        vault.creditDIEM(20e18);
         uint256 rate1 = vault.convertToAssets(1e18);
-        vm.prank(feeRouter); vault.creditDIEM(20e18);
+        vm.prank(feeRouter);
+        vault.creditDIEM(20e18);
         uint256 rate2 = vault.convertToAssets(1e18);
 
         assertGt(rate1, rate0);

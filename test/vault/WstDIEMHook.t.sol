@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import {InferenceVault} from "../../src/vault/InferenceVault.sol";
+import {WstDIEMHook} from "../../src/vault/WstDIEMHook.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {WstDIEMHook} from "../../src/vault/WstDIEMHook.sol";
-import {InferenceVault} from "../../src/vault/InferenceVault.sol";
+import {Test} from "forge-std/Test.sol";
 
 contract WstDIEMHookTest is Test {
     // Base mainnet addresses
     address constant V4_POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-    address constant DIEM            = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
 
-    WstDIEMHook    hook;
+    WstDIEMHook hook;
     InferenceVault vault;
 
     function setUp() public {
@@ -25,9 +25,7 @@ contract WstDIEMHookTest is Test {
         // BEFORE_SWAP_FLAG = 1 << 7  = 0x0080
         // AFTER_INITIALIZE_FLAG = 1 << 12 = 0x1000
         // Combined mask = 0x1080 = 4224
-        address hookAddr = address(
-            uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG)
-        );
+        address hookAddr = address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG));
 
         // Deploy the hook directly at the flagged address so BaseHook's
         // validateHookAddress() succeeds in the constructor.
@@ -47,10 +45,10 @@ contract WstDIEMHookTest is Test {
 
     function test_hookPermissions() public view {
         Hooks.Permissions memory perms = hook.getHookPermissions();
-        assertTrue(perms.beforeSwap,        "beforeSwap required");
-        assertTrue(perms.afterInitialize,   "afterInitialize required");
+        assertTrue(perms.beforeSwap, "beforeSwap required");
+        assertTrue(perms.afterInitialize, "afterInitialize required");
         assertFalse(perms.beforeInitialize, "beforeInitialize not needed");
-        assertFalse(perms.afterSwap,        "afterSwap not needed");
+        assertFalse(perms.afterSwap, "afterSwap not needed");
         assertFalse(perms.beforeSwapReturnDelta, "beforeSwapReturnDelta not set");
     }
 

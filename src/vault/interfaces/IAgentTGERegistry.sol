@@ -2,7 +2,11 @@
 pragma solidity ^0.8.28;
 
 interface IAgentTGERegistry {
-    enum Tier { Bronze, Silver, Gold }
+    enum Tier {
+        Bronze,
+        Silver,
+        Gold
+    }
 
     struct Commitment {
         address agent;

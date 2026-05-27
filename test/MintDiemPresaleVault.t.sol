@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
 import {MintDiemPresaleVault} from "../src/extensions/MintDiemPresaleVault.sol";
 import {ILiquid} from "../src/interfaces/ILiquid.sol";
 import {ILiquidExtension} from "../src/interfaces/ILiquidExtension.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Test} from "forge-std/Test.sol";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 contract MockERC20 is ERC20 {
     constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 /// @dev Factory simulates Liquid Protocol factory calling receiveTokens.
@@ -37,9 +40,13 @@ contract StakingMock {
     MockERC20 public diemMock;
     uint256 constant RATE = 1e17; // 0.1 DIEM per sVVV
 
-    constructor(MockERC20 _diem) { diemMock = _diem; }
+    constructor(MockERC20 _diem) {
+        diemMock = _diem;
+    }
 
-    function setVvv(address _vvv) external { vvv = _vvv; }
+    function setVvv(address _vvv) external {
+        vvv = _vvv;
+    }
 
     function stake(address staker, uint256 amount) external {
         IERC20(vvv).transferFrom(msg.sender, address(this), amount);
@@ -63,39 +70,42 @@ contract StakingMock {
 /// @dev Plain VVV ERC-20 mock — no mintDiem (matches real VVV token).
 contract VVVMock is ERC20 {
     constructor() ERC20("VVV", "VVV") {}
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 // ── Base test contract ────────────────────────────────────────────────────────
 
 abstract contract BaseTest is Test {
-    StakingMock    stakingMock;
-    VVVMock        vvvMock;
-    MockERC20      diemMock;
-    MockERC20      agentToken;
-    MockFactory    factory;
+    StakingMock stakingMock;
+    VVVMock vvvMock;
+    MockERC20 diemMock;
+    MockERC20 agentToken;
+    MockFactory factory;
 
     MintDiemPresaleVault vault;
-    address agentWallet  = makeAddr("agent");
+    address agentWallet = makeAddr("agent");
     address protocolAddr = makeAddr("protocol");
 
     // 24h default window; MIN is 2h enforced in contract
-    uint256 constant DEPOSIT_WINDOW   = 24 hours;
-    uint256 constant DIEM_TARGET      = 100e18;
-    uint256 constant EXTENSION_BPS    = 1000;               // 10%
-    uint256 constant TOTAL_SUPPLY     = 100_000_000_000e18; // 100B
+    uint256 constant DEPOSIT_WINDOW = 24 hours;
+    uint256 constant DIEM_TARGET = 100e18;
+    uint256 constant EXTENSION_BPS = 1000; // 10%
+    uint256 constant TOTAL_SUPPLY = 100_000_000_000e18; // 100B
     uint256 constant EXTENSION_SUPPLY = TOTAL_SUPPLY * EXTENSION_BPS / 10_000; // 10B
 
     // 1000 VVV → 100 DIEM at mock rate 0.1 DIEM/VVV = exactly diemTarget
     uint256 constant VVV_FOR_MAX = 1000e18;
 
     function setUp() public virtual {
-        diemMock    = new MockERC20("DIEM", "DIEM");
+        diemMock = new MockERC20("DIEM", "DIEM");
         stakingMock = new StakingMock(diemMock);
-        vvvMock     = new VVVMock();
+        vvvMock = new VVVMock();
         stakingMock.setVvv(address(vvvMock));
-        agentToken  = new MockERC20("AgentToken", "AGT");
-        factory     = new MockFactory();
+        agentToken = new MockERC20("AgentToken", "AGT");
+        factory = new MockFactory();
 
         agentToken.mint(address(factory), EXTENSION_SUPPLY);
 
@@ -108,7 +118,7 @@ abstract contract BaseTest is Test {
             DEPOSIT_WINDOW,
             address(factory),
             protocolAddr,
-            0                 // protocolFeeBps = 0 for baseline tests
+            0 // protocolFeeBps = 0 for baseline tests
         );
     }
 
@@ -183,19 +193,29 @@ contract MintDiemPresaleVault_Init is BaseTest {
     function test_constructor_revertsWindowTooShort() public {
         vm.expectRevert(MintDiemPresaleVault.InvalidDepositWindow.selector);
         new MintDiemPresaleVault(
-            address(vvvMock), address(stakingMock), address(diemMock),
-            agentWallet, DIEM_TARGET,
-            1 hours,          // below 2h minimum
-            address(factory), protocolAddr, 0
+            address(vvvMock),
+            address(stakingMock),
+            address(diemMock),
+            agentWallet,
+            DIEM_TARGET,
+            1 hours, // below 2h minimum
+            address(factory),
+            protocolAddr,
+            0
         );
     }
 
     function test_constructor_acceptsMinWindow() public {
         MintDiemPresaleVault v = new MintDiemPresaleVault(
-            address(vvvMock), address(stakingMock), address(diemMock),
-            agentWallet, DIEM_TARGET,
-            2 hours,          // exactly at minimum
-            address(factory), protocolAddr, 0
+            address(vvvMock),
+            address(stakingMock),
+            address(diemMock),
+            agentWallet,
+            DIEM_TARGET,
+            2 hours, // exactly at minimum
+            address(factory),
+            protocolAddr,
+            0
         );
         assertEq(v.depositWindow(), 2 hours);
     }
@@ -219,17 +239,23 @@ contract MintDiemPresaleVault_VvvDeposit is BaseTest {
         _deposit(depositor, vvvAmount);
 
         assertEq(diemMock.balanceOf(agentWallet), _diem(vvvAmount));
-        assertEq(vault.vvvDeposited(depositor),   vvvAmount);
+        assertEq(vault.vvvDeposited(depositor), vvvAmount);
         assertEq(vault.diemContributed(depositor), _diem(vvvAmount));
-        assertEq(vault.totalVvvDeposited(),        vvvAmount);
-        assertEq(vault.totalDiemMinted(),          _diem(vvvAmount));
+        assertEq(vault.totalVvvDeposited(), vvvAmount);
+        assertEq(vault.totalDiemMinted(), _diem(vvvAmount));
     }
 
     function test_deposit_revertsBeforeInit() public {
         MintDiemPresaleVault uninit = new MintDiemPresaleVault(
-            address(vvvMock), address(stakingMock), address(diemMock),
-            agentWallet, DIEM_TARGET, DEPOSIT_WINDOW,
-            address(factory), protocolAddr, 0
+            address(vvvMock),
+            address(stakingMock),
+            address(diemMock),
+            agentWallet,
+            DIEM_TARGET,
+            DEPOSIT_WINDOW,
+            address(factory),
+            protocolAddr,
+            0
         );
         _giveVvv(depositor, 1e18);
         vm.prank(depositor);
@@ -276,14 +302,14 @@ contract MintDiemPresaleVault_VvvDeposit is BaseTest {
 
     function test_multipleDepositors() public {
         address alice = makeAddr("alice");
-        address bob   = makeAddr("bob");
+        address bob = makeAddr("bob");
         _giveVvv(alice, 200e18);
-        _giveVvv(bob,   100e18);
+        _giveVvv(bob, 100e18);
         _deposit(alice, 200e18);
-        _deposit(bob,   100e18);
+        _deposit(bob, 100e18);
 
         assertEq(vault.totalVvvDeposited(), 300e18);
-        assertEq(vault.totalDiemMinted(),   _diem(300e18));
+        assertEq(vault.totalDiemMinted(), _diem(300e18));
         assertEq(diemMock.balanceOf(agentWallet), _diem(300e18));
     }
 
@@ -308,17 +334,23 @@ contract MintDiemPresaleVault_DiemDeposit is BaseTest {
         _giveDiem(depositor, amount);
         _depositDIEM(depositor, amount);
 
-        assertEq(diemMock.balanceOf(agentWallet),    amount);
-        assertEq(vault.diemDeposited(depositor),     amount);
-        assertEq(vault.diemContributed(depositor),   amount);
-        assertEq(vault.totalDiemMinted(),            amount);
+        assertEq(diemMock.balanceOf(agentWallet), amount);
+        assertEq(vault.diemDeposited(depositor), amount);
+        assertEq(vault.diemContributed(depositor), amount);
+        assertEq(vault.totalDiemMinted(), amount);
     }
 
     function test_depositDIEM_revertsBeforeInit() public {
         MintDiemPresaleVault uninit = new MintDiemPresaleVault(
-            address(vvvMock), address(stakingMock), address(diemMock),
-            agentWallet, DIEM_TARGET, DEPOSIT_WINDOW,
-            address(factory), protocolAddr, 0
+            address(vvvMock),
+            address(stakingMock),
+            address(diemMock),
+            agentWallet,
+            DIEM_TARGET,
+            DEPOSIT_WINDOW,
+            address(factory),
+            protocolAddr,
+            0
         );
         _giveDiem(depositor, 1e18);
         vm.prank(depositor);
@@ -379,7 +411,7 @@ contract MintDiemPresaleVault_MixedDeposits is BaseTest {
 
     function test_mixedDeposits_equalDiemValue_equalShares() public {
         address alice = makeAddr("alice");
-        address bob   = makeAddr("bob");
+        address bob = makeAddr("bob");
 
         // Alice deposits 100 VVV → 10 DIEM equivalent
         _giveVvv(alice, 100e18);
@@ -395,7 +427,7 @@ contract MintDiemPresaleVault_MixedDeposits is BaseTest {
 
     function test_mixedDeposits_proportionalShares() public {
         address alice = makeAddr("alice");
-        address bob   = makeAddr("bob");
+        address bob = makeAddr("bob");
 
         // Alice: 200 VVV → 20 DIEM. Bob: 10 DIEM direct. Total: 30 DIEM.
         _giveVvv(alice, 200e18);
@@ -406,12 +438,12 @@ contract MintDiemPresaleVault_MixedDeposits is BaseTest {
         uint256 effective = vault.effectiveAllocation();
         // Alice: 20/30 = 2/3; Bob: 10/30 = 1/3
         assertApproxEqRel(vault.getShare(alice), effective * 2 / 3, 0.01e18);
-        assertApproxEqRel(vault.getShare(bob),   effective / 3,     0.01e18);
+        assertApproxEqRel(vault.getShare(bob), effective / 3, 0.01e18);
     }
 
     function test_mixedDeposits_capEnforcedAcrossBothPaths() public {
         address alice = makeAddr("alice");
-        address bob   = makeAddr("bob");
+        address bob = makeAddr("bob");
 
         // Alice deposits 50 DIEM directly; 50 remain
         _giveDiem(alice, 50e18);
@@ -467,15 +499,15 @@ contract MintDiemPresaleVault_Allocation is BaseTest {
 
     function test_getShare_twoDepositors_proportional() public {
         address alice = makeAddr("alice");
-        address bob   = makeAddr("bob");
+        address bob = makeAddr("bob");
         _giveVvv(alice, 100e18); // 10 DIEM → 1/3
-        _giveVvv(bob,   200e18); // 20 DIEM → 2/3
+        _giveVvv(bob, 200e18); // 20 DIEM → 2/3
         _deposit(alice, 100e18);
-        _deposit(bob,   200e18);
+        _deposit(bob, 200e18);
 
         uint256 effective = vault.effectiveAllocation();
-        assertApproxEqRel(vault.getShare(alice), effective / 3,     0.01e18);
-        assertApproxEqRel(vault.getShare(bob),   effective * 2 / 3, 0.01e18);
+        assertApproxEqRel(vault.getShare(alice), effective / 3, 0.01e18);
+        assertApproxEqRel(vault.getShare(bob), effective * 2 / 3, 0.01e18);
     }
 
     function test_zeroShare_noDeposit() public {
@@ -485,15 +517,15 @@ contract MintDiemPresaleVault_Allocation is BaseTest {
 
 contract MintDiemPresaleVault_Claim is BaseTest {
     address alice = makeAddr("alice");
-    address bob   = makeAddr("bob");
+    address bob = makeAddr("bob");
 
     function setUp() public override {
         super.setUp();
         _initVault();
         _giveVvv(alice, 100e18);
-        _giveVvv(bob,   200e18);
+        _giveVvv(bob, 200e18);
         _deposit(alice, 100e18);
-        _deposit(bob,   200e18);
+        _deposit(bob, 200e18);
         vm.warp(block.timestamp + DEPOSIT_WINDOW + 1);
     }
 
@@ -506,23 +538,32 @@ contract MintDiemPresaleVault_Claim is BaseTest {
 
     function test_claimTokens_bothDepositors() public {
         uint256 aliceShare = vault.getShare(alice);
-        uint256 bobShare   = vault.getShare(bob);
-        vm.prank(alice); vault.claimTokens();
-        vm.prank(bob);   vault.claimTokens();
+        uint256 bobShare = vault.getShare(bob);
+        vm.prank(alice);
+        vault.claimTokens();
+        vm.prank(bob);
+        vault.claimTokens();
         assertEq(agentToken.balanceOf(alice), aliceShare);
-        assertEq(agentToken.balanceOf(bob),   bobShare);
+        assertEq(agentToken.balanceOf(bob), bobShare);
     }
 
     function test_claimTokens_revertsIfWindowOpen() public {
         // freshVault uses address(this) as factory so receiveTokens can be called directly
         MintDiemPresaleVault freshVault = new MintDiemPresaleVault(
-            address(vvvMock), address(stakingMock), address(diemMock),
-            agentWallet, DIEM_TARGET, DEPOSIT_WINDOW,
-            address(this), protocolAddr, 0
+            address(vvvMock),
+            address(stakingMock),
+            address(diemMock),
+            agentWallet,
+            DIEM_TARGET,
+            DEPOSIT_WINDOW,
+            address(this),
+            protocolAddr,
+            0
         );
         agentToken.mint(address(this), EXTENSION_SUPPLY);
         agentToken.approve(address(freshVault), EXTENSION_SUPPLY);
-        ILiquid.DeploymentConfig memory cfg; PoolKey memory key;
+        ILiquid.DeploymentConfig memory cfg;
+        PoolKey memory key;
         freshVault.receiveTokens(cfg, key, address(agentToken), EXTENSION_SUPPLY, 0);
 
         vm.expectRevert(MintDiemPresaleVault.DepositWindowOpen.selector);
@@ -530,7 +571,8 @@ contract MintDiemPresaleVault_Claim is BaseTest {
     }
 
     function test_claimTokens_revertsDoubleClaim() public {
-        vm.prank(alice); vault.claimTokens();
+        vm.prank(alice);
+        vault.claimTokens();
         vm.prank(alice);
         vm.expectRevert(MintDiemPresaleVault.AlreadyClaimed.selector);
         vault.claimTokens();
@@ -545,18 +587,27 @@ contract MintDiemPresaleVault_Claim is BaseTest {
     function test_claimTokens_diemDepositor() public {
         // Set up a separate vault where bob deposits DIEM instead of VVV
         MintDiemPresaleVault freshVault = new MintDiemPresaleVault(
-            address(vvvMock), address(stakingMock), address(diemMock),
-            agentWallet, DIEM_TARGET, DEPOSIT_WINDOW,
-            address(this), protocolAddr, 0
+            address(vvvMock),
+            address(stakingMock),
+            address(diemMock),
+            agentWallet,
+            DIEM_TARGET,
+            DEPOSIT_WINDOW,
+            address(this),
+            protocolAddr,
+            0
         );
         agentToken.mint(address(this), EXTENSION_SUPPLY);
         agentToken.approve(address(freshVault), EXTENSION_SUPPLY);
-        ILiquid.DeploymentConfig memory cfg; PoolKey memory key;
+        ILiquid.DeploymentConfig memory cfg;
+        PoolKey memory key;
         freshVault.receiveTokens(cfg, key, address(agentToken), EXTENSION_SUPPLY, 0);
 
         diemMock.mint(bob, 10e18);
-        vm.prank(bob); diemMock.approve(address(freshVault), 10e18);
-        vm.prank(bob); freshVault.depositDIEM(10e18);
+        vm.prank(bob);
+        diemMock.approve(address(freshVault), 10e18);
+        vm.prank(bob);
+        freshVault.depositDIEM(10e18);
 
         vm.warp(block.timestamp + DEPOSIT_WINDOW + 1);
         vm.prank(bob);
@@ -578,7 +629,7 @@ contract MintDiemPresaleVault_Burn is BaseTest {
         _deposit(depositor, 500e18);
         vm.warp(block.timestamp + DEPOSIT_WINDOW + 1);
 
-        uint256 effective    = vault.effectiveAllocation();
+        uint256 effective = vault.effectiveAllocation();
         uint256 expectedBurn = EXTENSION_SUPPLY - effective;
         vault.burnUnclaimed();
         assertEq(agentToken.balanceOf(address(0xdead)), expectedBurn);
@@ -614,9 +665,15 @@ contract MintDiemPresaleVault_ProtocolFee is BaseTest {
     function setUp() public override {
         super.setUp();
         feeVault = new MintDiemPresaleVault(
-            address(vvvMock), address(stakingMock), address(diemMock),
-            agentWallet, DIEM_TARGET, DEPOSIT_WINDOW,
-            address(factory), protocolAddr, FEE_BPS
+            address(vvvMock),
+            address(stakingMock),
+            address(diemMock),
+            agentWallet,
+            DIEM_TARGET,
+            DEPOSIT_WINDOW,
+            address(factory),
+            protocolAddr,
+            FEE_BPS
         );
         factory.callReceiveTokens(address(feeVault), address(agentToken), EXTENSION_SUPPLY);
     }
@@ -625,33 +682,39 @@ contract MintDiemPresaleVault_ProtocolFee is BaseTest {
         address depositor = makeAddr("depositor");
         uint256 vvvAmount = 100e18;
         vvvMock.mint(depositor, vvvAmount);
-        vm.prank(depositor); vvvMock.approve(address(feeVault), vvvAmount);
-        vm.prank(depositor); feeVault.deposit(vvvAmount, 0);
+        vm.prank(depositor);
+        vvvMock.approve(address(feeVault), vvvAmount);
+        vm.prank(depositor);
+        feeVault.deposit(vvvAmount, 0);
 
         uint256 diemMinted = _diem(vvvAmount); // 10e18
-        uint256 fee        = diemMinted * FEE_BPS / 10_000;  // 0.2e18
+        uint256 fee = diemMinted * FEE_BPS / 10_000; // 0.2e18
         assertEq(diemMock.balanceOf(protocolAddr), fee);
-        assertEq(diemMock.balanceOf(agentWallet),  diemMinted - fee);
+        assertEq(diemMock.balanceOf(agentWallet), diemMinted - fee);
     }
 
     function test_diemDeposit_splitsFee() public {
         address depositor = makeAddr("depositor");
         uint256 diemAmount = 10e18;
         diemMock.mint(depositor, diemAmount);
-        vm.prank(depositor); diemMock.approve(address(feeVault), diemAmount);
-        vm.prank(depositor); feeVault.depositDIEM(diemAmount);
+        vm.prank(depositor);
+        diemMock.approve(address(feeVault), diemAmount);
+        vm.prank(depositor);
+        feeVault.depositDIEM(diemAmount);
 
         uint256 fee = diemAmount * FEE_BPS / 10_000; // 0.2e18
         assertEq(diemMock.balanceOf(protocolAddr), fee);
-        assertEq(diemMock.balanceOf(agentWallet),  diemAmount - fee);
+        assertEq(diemMock.balanceOf(agentWallet), diemAmount - fee);
     }
 
     function test_totalDiemMinted_isGross() public {
         address depositor = makeAddr("depositor");
         uint256 vvvAmount = 100e18;
         vvvMock.mint(depositor, vvvAmount);
-        vm.prank(depositor); vvvMock.approve(address(feeVault), vvvAmount);
-        vm.prank(depositor); feeVault.deposit(vvvAmount, 0);
+        vm.prank(depositor);
+        vvvMock.approve(address(feeVault), vvvAmount);
+        vm.prank(depositor);
+        feeVault.deposit(vvvAmount, 0);
         // totalDiemMinted tracks gross DIEM (drives allocation formula)
         assertEq(feeVault.totalDiemMinted(), _diem(vvvAmount));
     }
@@ -659,8 +722,8 @@ contract MintDiemPresaleVault_ProtocolFee is BaseTest {
 
 contract MintDiemPresaleVault_RateCalc is BaseTest {
     function test_vvvRequired_for100Diem() public pure {
-        uint256 rate      = 1e17;    // 0.1 DIEM per sVVV (mock)
-        uint256 diemWant  = 100e18;
+        uint256 rate = 1e17; // 0.1 DIEM per sVVV (mock)
+        uint256 diemWant = 100e18;
         uint256 vvvNeeded = diemWant * 1e18 / rate; // 1000 VVV
         assertEq(vvvNeeded, 1000e18);
     }
@@ -672,7 +735,7 @@ contract MintDiemPresaleVault_RateCalc is BaseTest {
         _deposit(depositor, 100e18);
 
         assertApproxEqRel(vault.effectiveAllocation(), EXTENSION_SUPPLY / 10, 0.02e18);
-        assertApproxEqRel(vault.getShare(depositor),   EXTENSION_SUPPLY / 10, 0.02e18);
+        assertApproxEqRel(vault.getShare(depositor), EXTENSION_SUPPLY / 10, 0.02e18);
     }
 
     function test_depositWindow_defaultIs24h() public view {

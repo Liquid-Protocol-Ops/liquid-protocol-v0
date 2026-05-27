@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {
+    BeforeSwapDelta,
+    BeforeSwapDeltaLibrary
+} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
 // LPFeeLibrary imported when WP-5 adds OVERRIDE_FEE_FLAG usage:
 // import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {IInferenceVault} from "./interfaces/IInferenceVault.sol";
@@ -33,9 +36,7 @@ contract WstDIEMHook is BaseHook {
     /// @notice Fee in pips applied when wstDIEM price deviates >2 % from NAV (100 bps = 1 %)
     uint24 public constant FEE_HIGH = 10_000;
 
-    constructor(IPoolManager _poolManager, IInferenceVault _vault)
-        BaseHook(_poolManager)
-    {
+    constructor(IPoolManager _poolManager, IInferenceVault _vault) BaseHook(_poolManager) {
         vault = _vault;
     }
 
@@ -45,20 +46,20 @@ contract WstDIEMHook is BaseHook {
 
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
         return Hooks.Permissions({
-            beforeInitialize:   false,
-            afterInitialize:    true,
+            beforeInitialize: false,
+            afterInitialize: true,
             beforeAddLiquidity: false,
-            afterAddLiquidity:  false,
-            beforeRemoveLiquidity:  false,
-            afterRemoveLiquidity:   false,
-            beforeSwap:         true,
-            afterSwap:          false,
-            beforeDonate:       false,
-            afterDonate:        false,
-            beforeSwapReturnDelta:              false,
-            afterSwapReturnDelta:               false,
-            afterAddLiquidityReturnDelta:       false,
-            afterRemoveLiquidityReturnDelta:    false
+            afterAddLiquidity: false,
+            beforeRemoveLiquidity: false,
+            afterRemoveLiquidity: false,
+            beforeSwap: true,
+            afterSwap: false,
+            beforeDonate: false,
+            afterDonate: false,
+            beforeSwapReturnDelta: false,
+            afterSwapReturnDelta: false,
+            afterAddLiquidityReturnDelta: false,
+            afterRemoveLiquidityReturnDelta: false
         });
     }
 

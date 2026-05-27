@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract InferenceVault is ERC4626, Ownable {
     using SafeERC20 for IERC20;
@@ -20,14 +20,14 @@ contract InferenceVault is ERC4626, Ownable {
 
     // --- Constants ---
     uint256 public constant TVL_FEE_THRESHOLD = 5_000_000e18;
-    uint256 public constant FEE_LOW_BPS       = 10;
-    uint256 public constant FEE_HIGH_BPS      = 50;
-    uint256 public constant WITHDRAWAL_DELAY  = 14 days;
+    uint256 public constant FEE_LOW_BPS = 10;
+    uint256 public constant FEE_HIGH_BPS = 50;
+    uint256 public constant WITHDRAWAL_DELAY = 14 days;
 
     // --- State ---
     address public feeRouter;
     address public treasury;
-    bool    public withdrawalsEnabled;
+    bool public withdrawalsEnabled;
     uint256 public withdrawalEnabledAt;
 
     constructor(address diem, address _treasury, address initialOwner)
@@ -56,23 +56,21 @@ contract InferenceVault is ERC4626, Ownable {
     // includes VOL-backing assets; they cancel so the external-holder rate is
     // unaffected by vault accumulation of its own shares.
     function _convertToShares(uint256 assets, Math.Rounding rounding)
-        internal view override returns (uint256)
+        internal
+        view
+        override
+        returns (uint256)
     {
-        return assets.mulDiv(
-            totalSupply() + 10 ** _decimalsOffset(),
-            totalAssets() + 1,
-            rounding
-        );
+        return assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
     }
 
     function _convertToAssets(uint256 shares, Math.Rounding rounding)
-        internal view override returns (uint256)
+        internal
+        view
+        override
+        returns (uint256)
     {
-        return shares.mulDiv(
-            totalAssets() + 1,
-            totalSupply() + 10 ** _decimalsOffset(),
-            rounding
-        );
+        return shares.mulDiv(totalAssets() + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
     }
 
     // --- Deposit fee ---
@@ -86,7 +84,8 @@ contract InferenceVault is ERC4626, Ownable {
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
-        internal override
+        internal
+        override
     {
         uint256 feeAssets = assets.mulDiv(currentDepositFeeBps(), 10_000, Math.Rounding.Ceil);
         // Compute fee shares BEFORE transferring assets so totalAssets is the

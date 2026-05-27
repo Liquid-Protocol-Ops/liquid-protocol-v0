@@ -116,9 +116,10 @@ abstract contract LiquidHookV2 is BaseHook, ILiquidHookV2 {
                 revert PoolExtensionNotEnabled();
             }
 
-            ILiquidHookV2PoolExtension(_poolExtension).initializePreLockerSetup(
-                poolKey, liquidIsToken0[poolKey.toId()], poolExtensionData
-            );
+            ILiquidHookV2PoolExtension(_poolExtension)
+                .initializePreLockerSetup(
+                    poolKey, liquidIsToken0[poolKey.toId()], poolExtensionData
+                );
             poolExtension[poolKey.toId()] = _poolExtension;
         }
         return;
@@ -188,9 +189,7 @@ abstract contract LiquidHookV2 is BaseHook, ILiquidHookV2 {
             revert OnlyFactoryPoolsCanHaveExtensions();
         }
 
-        emit PoolCreatedOpen(
-            pairedToken, liquid, poolKey.toId(), tickIfToken0IsLiquid, tickSpacing
-        );
+        emit PoolCreatedOpen(pairedToken, liquid, poolKey.toId(), tickIfToken0IsLiquid, tickSpacing);
 
         return poolKey;
     }
@@ -259,9 +258,10 @@ abstract contract LiquidHookV2 is BaseHook, ILiquidHookV2 {
 
         // give pool extension, if it exists, chance to check other configured settings
         if (poolExtension[poolKey.toId()] != address(0)) {
-            ILiquidHookV2PoolExtension(poolExtension[poolKey.toId()]).initializePostLockerSetup(
-                poolKey, locker[poolKey.toId()], liquidIsToken0[poolKey.toId()]
-            );
+            ILiquidHookV2PoolExtension(poolExtension[poolKey.toId()])
+                .initializePostLockerSetup(
+                    poolKey, locker[poolKey.toId()], liquidIsToken0[poolKey.toId()]
+                );
             // set the pool extension setup to true
             poolExtensionSetup[poolKey.toId()] = true;
         }
@@ -328,15 +328,18 @@ abstract contract LiquidHookV2 is BaseHook, ILiquidHookV2 {
                 poolSwapData = abi.decode(swapData, (PoolSwapData));
             } else {
                 poolSwapData = PoolSwapData({
-                    mevModuleSwapData: new bytes(0),
-                    poolExtensionSwapData: new bytes(0)
+                    mevModuleSwapData: new bytes(0), poolExtensionSwapData: new bytes(0)
                 });
             }
 
             // if the mev module is enabled  call it
-            bool disableMevModule = ILiquidMevModule(mevModule[poolKey.toId()]).beforeSwap(
-                poolKey, swapParams, liquidIsToken0[poolKey.toId()], poolSwapData.mevModuleSwapData
-            );
+            bool disableMevModule = ILiquidMevModule(mevModule[poolKey.toId()])
+                .beforeSwap(
+                    poolKey,
+                    swapParams,
+                    liquidIsToken0[poolKey.toId()],
+                    poolSwapData.mevModuleSwapData
+                );
 
             // disable the mevModule if the module requests it
             if (disableMevModule) {
@@ -366,8 +369,7 @@ abstract contract LiquidHookV2 is BaseHook, ILiquidHookV2 {
                 poolSwapData = abi.decode(swapData, (PoolSwapData));
             } else {
                 poolSwapData = PoolSwapData({
-                    mevModuleSwapData: new bytes(0),
-                    poolExtensionSwapData: new bytes(0)
+                    mevModuleSwapData: new bytes(0), poolExtensionSwapData: new bytes(0)
                 });
             }
 
@@ -391,9 +393,8 @@ abstract contract LiquidHookV2 is BaseHook, ILiquidHookV2 {
             revert OnlyThis();
         }
 
-        ILiquidHookV2PoolExtension(poolExtension[poolKey.toId()]).afterSwap(
-            poolKey, swapParams, delta, liquidIsToken0[poolKey.toId()], swapData
-        );
+        ILiquidHookV2PoolExtension(poolExtension[poolKey.toId()])
+            .afterSwap(poolKey, swapParams, delta, liquidIsToken0[poolKey.toId()], swapData);
     }
 
     function _lpLockerFeeClaim(PoolKey calldata poolKey) internal {

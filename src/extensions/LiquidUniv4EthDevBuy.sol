@@ -10,7 +10,9 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
-import {IUniversalRouter} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
+import {
+    IUniversalRouter
+} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -69,8 +71,9 @@ contract LiquidUniv4EthDevBuy is ReentrancyGuard, ILiquidUniv4EthDevBuy {
         );
 
         // perform the dev buy
-        uint256 tokenAmount =
-            _performDevBuy(token, deploymentConfig.poolConfig.pairedToken, tokenPoolKey, devBuyData);
+        uint256 tokenAmount = _performDevBuy(
+            token, deploymentConfig.poolConfig.pairedToken, tokenPoolKey, devBuyData
+        );
 
         // transfer the token to the recipient
         IERC20(token).transfer(devBuyData.recipient, tokenAmount);
@@ -197,7 +200,9 @@ contract LiquidUniv4EthDevBuy is ReentrancyGuard, ILiquidUniv4EthDevBuy {
 
         universalRouter.execute{
             value: Currency.unwrap(poolKey.currency0) == address(0) ? amountIn : 0
-        }(commands, inputs, block.timestamp);
+        }(
+            commands, inputs, block.timestamp
+        );
 
         uint256 tokenOutAfter = IERC20(tokenOut).balanceOf(address(this));
 

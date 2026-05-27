@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {InferenceVault} from "../../../src/vault/InferenceVault.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Test} from "forge-std/Test.sol";
 
 // Fork test against Base mainnet DIEM token
 contract PhaseAIntegrationTest is Test {
-    address constant DIEM     = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
 
     InferenceVault vault;
-    address treasury  = makeAddr("treasury");
+    address treasury = makeAddr("treasury");
     address feeRouter = makeAddr("feeRouter");
-    address alice     = makeAddr("alice");
+    address alice = makeAddr("alice");
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
@@ -21,11 +21,13 @@ contract PhaseAIntegrationTest is Test {
         vault.setFeeRouter(feeRouter);
 
         // Fund alice with DIEM via deal
-        deal(DIEM, alice, 1_000e18);
+        deal(DIEM, alice, 1000e18);
         deal(DIEM, feeRouter, 10_000e18);
 
-        vm.prank(alice);     IERC20(DIEM).approve(address(vault), type(uint256).max);
-        vm.prank(feeRouter); IERC20(DIEM).approve(address(vault), type(uint256).max);
+        vm.prank(alice);
+        IERC20(DIEM).approve(address(vault), type(uint256).max);
+        vm.prank(feeRouter);
+        IERC20(DIEM).approve(address(vault), type(uint256).max);
     }
 
     function test_fork_depositAndCredit() public {
@@ -37,7 +39,7 @@ contract PhaseAIntegrationTest is Test {
 
         // FeeRouter credits 10 DIEM (non-dilutive)
         uint256 supplyBefore = vault.totalSupply();
-        uint256 rateBefore   = vault.convertToAssets(1e18);
+        uint256 rateBefore = vault.convertToAssets(1e18);
         vm.prank(feeRouter);
         vault.creditDIEM(10e18);
 
