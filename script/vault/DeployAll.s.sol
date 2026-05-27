@@ -33,7 +33,9 @@ contract DeployAll is Script {
 
     function run() external {
         address deployer = vm.envAddress("DEPLOYER_ADDRESS");
+        require(deployer == msg.sender, "DeployAll: DEPLOYER_ADDRESS must match broadcaster");
         address treasury = vm.envAddress("TREASURY_ADDRESS");
+        require(treasury != address(0), "DeployAll: TREASURY_ADDRESS not set");
         address safe = vm.envAddress("SAFE_MULTISIG_ADDRESS");
 
         vm.startBroadcast();
@@ -75,9 +77,10 @@ contract DeployAll is Script {
         console.log("Morpho oracle:", oracle);
 
         uint256 lltv = 77e16;
-        if (!IMorpho(MORPHO_BLUE).isLltvEnabled(lltv)) {
-            lltv = 0;
-        }
+        require(
+            IMorpho(MORPHO_BLUE).isLltvEnabled(lltv),
+            "DeployAll: 77e16 LLTV not enabled on Morpho Blue"
+        );
         IMorpho(MORPHO_BLUE)
             .createMarket(
                 MarketParams({

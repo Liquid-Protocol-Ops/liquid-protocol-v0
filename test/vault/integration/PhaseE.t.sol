@@ -86,8 +86,13 @@ contract PhaseEIntegrationTest is Test {
         feeRouter.receivewstDIEM(shares);
         vm.stopPrank();
 
-        // Harvest flushes accumulated wstDIEM into Curve VOL — no revert = pass
+        // Harvest flushes accumulated wstDIEM into Curve VOL
         feeRouter.harvest();
+        assertEq(
+            IERC20(address(vault)).balanceOf(address(feeRouter)),
+            0,
+            "wstDIEM not flushed from FeeRouter"
+        );
     }
 
     function test_fork_vaultRateMonotone() public {
