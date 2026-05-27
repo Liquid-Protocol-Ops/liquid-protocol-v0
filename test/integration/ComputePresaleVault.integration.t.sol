@@ -181,8 +181,8 @@ contract VVVIrrevocableIntegration is BaseIntegration {
         vault.finalizeVVV();
         assertEq(IERC20(VVV).balanceOf(agentWallet), 0);
 
-        // No one can claim (totalDeposited == 0)
-        vm.expectRevert(); // NoDepositsInVault
+        // No one can claim (depositor1 never deposited, NothingDeposited fires first)
+        vm.expectRevert(ComputePresaleVault.NothingDeposited.selector);
         vm.prank(depositor1);
         vault.claimTokens();
     }
