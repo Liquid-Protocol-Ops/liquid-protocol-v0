@@ -25,8 +25,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: ./.github/actions/setup
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: 1.5.1
+      - name: Install dependencies
+        run: forge install
       - name: Build
         run: forge build
       - name: Run tests
         run: forge test -vvv
+        env:
+          BASE_RPC_URL: ${{ secrets.RPC_URL }}
