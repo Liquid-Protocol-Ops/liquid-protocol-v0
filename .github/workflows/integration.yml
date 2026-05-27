@@ -27,9 +27,9 @@ jobs:
       - name: Run integration tests
         run: |
           forge test \
-            --match-path "test/integration/*.t.sol" \
+            --match-path "test/**/integration/*.t.sol" \
             --fork-url "$RPC_URL" \
-            --fork-block-number 46600000 \
             -v
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
+          BASE_RPC_URL: ${{ secrets.RPC_URL }}
