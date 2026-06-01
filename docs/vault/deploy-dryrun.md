@@ -15,13 +15,13 @@ They will differ on live deploy if nonce differs.
 
 | Contract | Simulated address |
 |----------|-------------------|
-| `InferenceVault` (wstDIEM) | `0x69F5b6A3588317C470c840335b3a86d14A218AA8` |
+| `InferenceVault` (wstDIEM) | `0xd2069DB11f157C5d86b6ef2D36bAAd6411E14b63` |
 | Curve DIEM/wstDIEM pool | `0x12380121477335b9F91CE413850DBedb7CDB9fdD` |
-| `FeeRouter` | `0xE2E092957369AE866CC0bF073E8d5d20b2bE0006` |
-| `Router` | `0x208f354685163088f4d3A48D8E898DF037baEe58` |
-| `AgentTGERegistry` | `0x8f129667BC02C9aaec1F419cd0D2d93eacCEF90A` |
-| `SurplusStakingWrapper` | `0x9eBDF5696A2f3138d07e4135aB11010B095CCC24` |
-| Morpho oracle | `0x4B510C8829378e973b3a10831140964148AFDc66` |
+| `FeeRouter` | `0xc4845F25B84EA8970D622fbF4FF7d10a6Fb7829e` |
+| `Router` | `0x1C3709eCc560E3c5f529544ef36daA10E352f862` |
+| `AgentTGERegistry` | `0x8Dc32dA92B89a0968BEc020924491FE94573bef2` |
+| `SurplusStakingWrapper` | `0x93577aAA7469Ef62198680Bc006a45e9bd6292B3` |
+| Morpho oracle | `0xE762e8011D453853638D1978398df8b1D383A2D9` |
 
 ---
 
@@ -29,9 +29,9 @@ They will differ on live deploy if nonce differs.
 
 | Metric | Value |
 |--------|-------|
-| Estimated gas price | 0.011 gwei |
-| Estimated total gas | 16,331,380 |
-| Estimated ETH required | **0.000180 ETH** |
+| Estimated gas price | 0.01075 gwei |
+| Estimated total gas | 16,335,162 |
+| Estimated ETH required | **0.0001756 ETH** |
 
 ---
 
@@ -51,7 +51,7 @@ They will differ on live deploy if nonce differs.
 
 | Variable | Dry-run value | Notes |
 |----------|---------------|-------|
-| `DEPLOYER_ADDRESS` | `0x49f5b131e083510d47b22f7f4526c1b0f7957cda` | Liquid Protocol deployer (existing Base deployer key) |
+| `DEPLOYER_ADDRESS` | `0xeEd4c6fd992e003cA01f10a3c3e7D8B671789698` | Fresh deployer wallet — key in 1Password `base` vault → "wstDIEM Vault Deployer" |
 | `TREASURY_ADDRESS` | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | ✅ Confirmed — same Safe as governance |
 | `SAFE_MULTISIG_ADDRESS` | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | ✅ Confirmed — Liquid Protocol governance Safe |
 
@@ -61,7 +61,7 @@ They will differ on live deploy if nonce differs.
 
 - [x] Confirm `TREASURY_ADDRESS` — `0x872c561f699B42977c093F0eD8b4C9a431280c6c` (Safe)
 - [x] Confirm `SAFE_MULTISIG_ADDRESS` — `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
-- [ ] **Fund deployer** — `0x49f5b131e083510d47b22f7f4526c1b0f7957cda` has ~0 ETH; send ≥ 0.001 ETH from Safe before broadcasting
+- [ ] **Fund deployer** — `0xeEd4c6fd992e003cA01f10a3c3e7D8B671789698` has 0 ETH (fresh wallet); send ≥ 0.001 ETH from Safe before broadcasting
 - [ ] Get approval on this doc before `--broadcast`
 
 ---
@@ -84,12 +84,12 @@ Suite result: ok. 3 passed; 0 failed; 0 skipped
 ## Live deploy command (fill in real addresses before running)
 
 ```bash
-DEPLOYER_ADDRESS=<real-deployer> \
-TREASURY_ADDRESS=<real-treasury> \
-SAFE_MULTISIG_ADDRESS=<real-safe> \
+DEPLOYER_ADDRESS=0xeEd4c6fd992e003cA01f10a3c3e7D8B671789698 \
+TREASURY_ADDRESS=0x872c561f699B42977c093F0eD8b4C9a431280c6c \
+SAFE_MULTISIG_ADDRESS=0x872c561f699B42977c093F0eD8b4C9a431280c6c \
 forge script script/vault/DeployAll.s.sol \
   --rpc-url https://base-mainnet.g.alchemy.com/v2/<key> \
-  --account <ledger-or-keystore> \
+  --private-key $(op item get dlvppn2nk3mkz2ewgcu3yhqbj4 --field private_key --reveal) \
   --broadcast \
   --slow \
   --verify \
