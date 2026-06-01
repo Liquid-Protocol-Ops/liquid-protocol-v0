@@ -52,19 +52,17 @@ They will differ on live deploy if nonce differs.
 | Variable | Dry-run value | Notes |
 |----------|---------------|-------|
 | `DEPLOYER_ADDRESS` | `0x49f5b131e083510d47b22f7f4526c1b0f7957cda` | Liquid Protocol deployer (existing Base deployer key) |
-| `TREASURY_ADDRESS` | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | **[TBD]** — set to vault treasury wallet before live deploy |
-| `SAFE_MULTISIG_ADDRESS` | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | **[TBD]** — set to new 3-of-5 governance Safe (MOG-489/WP-10) |
+| `TREASURY_ADDRESS` | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | ✅ Confirmed — same Safe as governance |
+| `SAFE_MULTISIG_ADDRESS` | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | ✅ Confirmed — Liquid Protocol governance Safe |
 
 ---
 
 ## Pre-live deploy checklist (MOG-501 / WP-14)
 
-- [ ] Confirm `TREASURY_ADDRESS` (vault fee recipient)
-- [ ] Create 3-of-5 Safe for `SAFE_MULTISIG_ADDRESS` (MOG-489)
-- [ ] Verify deployer wallet has ≥ 0.001 ETH on Base for gas headroom
-- [ ] Fund deployer from Safe if needed
-- [ ] Re-run dry-run with real addresses and review output
-- [ ] Get second approval on this doc before `--broadcast`
+- [x] Confirm `TREASURY_ADDRESS` — `0x872c561f699B42977c093F0eD8b4C9a431280c6c` (Safe)
+- [x] Confirm `SAFE_MULTISIG_ADDRESS` — `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
+- [ ] **Fund deployer** — `0x49f5b131e083510d47b22f7f4526c1b0f7957cda` has ~0 ETH; send ≥ 0.001 ETH from Safe before broadcasting
+- [ ] Get approval on this doc before `--broadcast`
 
 ---
 
