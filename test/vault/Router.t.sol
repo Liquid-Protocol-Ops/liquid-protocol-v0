@@ -52,11 +52,7 @@ contract RouterTest is Test {
 
     // ── depositWETH stub ──────────────────────────────────────────────────
 
-    function test_depositWETH_revertWithPoolNotSet() public {
-        vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSignature("PoolNotSet()"));
-        router.depositWETH(1e18, 0, alice);
-    }
+    // depositWETH uses V3 only — no v4Pool required, guard was intentionally removed.
 
     // ── exitToWETH stub ───────────────────────────────────────────────────
 
