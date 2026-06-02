@@ -13,10 +13,11 @@ interface ISafe {
 }
 
 contract SafeBatchV3 is Script {
+    // v4 live addresses — deployed 2026-06-01
     address constant SAFE         = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
-    address constant VAULT        = 0x3394898b648385FAd4FE847c52B5E4CCe0D63662;
-    address constant FEEROUTER    = 0x33B218bd86046AAd25c209B1d7Adb7e8A6648387;
-    address constant ROUTER       = 0xA92EF6a90058f52556e74504324D28D7EC8d49a2;
+    address constant VAULT        = 0x4751BA2b09374C1929FC01734a166e3c8cd75810; // InferenceVault v4 (old API, pre-redesign)
+    address constant FEEROUTER    = 0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61; // FeeRouter v4
+    address constant ROUTER       = 0x6f5FF03a91cb1703B7CB8d85572f990bcB04273D; // Router v8
     address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
     bytes32 constant POOL_ID      = 0x834007392f8ff5f0f2d5c5465009df1b319ec1f8ac77386f179450f2abb65045;
     address constant ZERO         = address(0);

@@ -12,7 +12,7 @@ contract ComputePoolId is Script {
     function run() external view {
         PoolKey memory key = PoolKey({
             currency0: Currency.wrap(0x4200000000000000000000000000000000000006),
-            currency1: Currency.wrap(0x3394898b648385FAd4FE847c52B5E4CCe0D63662),
+            currency1: Currency.wrap(0x4751BA2b09374C1929FC01734a166e3c8cd75810), // wstDIEM v4
             fee: 3000,
             tickSpacing: 60,
             hooks: IHooks(address(0))

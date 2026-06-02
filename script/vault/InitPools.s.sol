@@ -28,9 +28,9 @@ contract InitPools is Script {
     address constant POOL_MANAGER     = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
     address constant WETH             = 0x4200000000000000000000000000000000000006;
     address constant DIEM             = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    // V3 deployment
-    address constant WSTDIEM          = 0x3394898b648385FAd4FE847c52B5E4CCe0D63662;
-    address constant CURVE_DIEM_WSTDIEM = 0x01773049bA5c5cEF28072e5c071a629b4dee555c;
+    // v4 live deployment (2026-06-01)
+    address constant WSTDIEM          = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
+    address constant CURVE_DIEM_WSTDIEM = 0x39A4b4779C71E1A18d500627639682c9583Ee86f;
 
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_PK");
