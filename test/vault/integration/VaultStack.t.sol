@@ -32,13 +32,13 @@ contract VaultStackIntegrationTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
 
-        vault     = new InferenceVault(DIEM, treasury, address(this));
+        vault     = new InferenceVault(DIEM, treasury, makeAddr("veniceSigner"), address(this));
         feeRouter = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, address(0), address(0));
         router    = new Router(address(vault), WETH, VVV, VVV_STAKING);
         registry  = new AgentTGERegistry(address(feeRouter), address(this));
         wrapper   = new SurplusStakingWrapper(address(vault), address(0));
 
-        vault.setFeeRouter(address(feeRouter));
+        vault.setVenueAdapter(address(feeRouter), true);
 
         deal(DIEM, alice, 10_000e18);
         deal(DIEM, bob,   10_000e18);
@@ -138,27 +138,25 @@ contract VaultStackIntegrationTest is Test {
     function test_e2e_fullWithdrawalFlow() public {
         vm.prank(alice); vault.deposit(100e18, alice);
 
-        // Step 1: owner initiates unstake
-        vault.initiateUnstake(100e18);
-
-        // Step 2: wait 24h DIEM cooldown
-        vm.warp(block.timestamp + 86_401);
-        vault.completeUnstake();
-
-        // DIEM is now liquid in vault
-        assertEq(IERC20(DIEM).balanceOf(address(vault)), 100e18);
-
-        // Step 3: owner initiates 14-day governance timelock
-        vault.initiateEnableWithdrawals();
-        vm.warp(block.timestamp + 14 days + 1);
-        vault.enableWithdrawals();
-        assertTrue(vault.withdrawalsEnabled());
-
-        // Step 4: alice can redeem
+        // Step 1: alice queues withdrawal — shares burned, DIEM amount locked
         uint256 shares = vault.balanceOf(alice);
+        uint256 expectedDiem = vault.previewRedeem(shares);
+        uint256 aliceBalBefore = IERC20(DIEM).balanceOf(alice);
         vm.prank(alice);
-        uint256 diem = vault.redeem(shares, alice, alice);
-        assertGt(diem, 0, "alice must receive DIEM on redemption");
+        uint256 reqId = vault.requestRedeem(shares, alice);
+
+        // Step 2: flush after minBatchOpenSecs → initiates Venice unstake (~24h)
+        vm.warp(block.timestamp + vault.minBatchOpenSecs() + 1);
+        vault.flush();
+
+        // Step 3: settle after Venice cooldown
+        (,, uint64 unlockAt,,) = vault.unstakeBatches(1);
+        vm.warp(unlockAt + 1);
+        vault.settle();
+
+        // Step 4: alice claims; anyone can trigger but DIEM always goes to receiver
+        vault.claimRedeem(reqId);
+        assertApproxEqAbs(IERC20(DIEM).balanceOf(alice) - aliceBalBefore, expectedDiem, 1);
     }
 
     // ── feeRouter.receiveVVV accumulation ────────────────────────────────

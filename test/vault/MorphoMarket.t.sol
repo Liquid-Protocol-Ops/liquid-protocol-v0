@@ -37,7 +37,7 @@ contract MorphoMarketTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault      = new InferenceVault(DIEM, makeAddr("treasury"), address(this));
+        vault      = new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
         diemOracle = new WstDIEMMorphoOracle(address(vault));
         usdcOracle = new WstDiemUsdcOracle(address(vault));
         wethOracle = new WstDiemWethOracle(address(vault), ETH_USD_FEED, 3600);
@@ -69,7 +69,7 @@ contract MorphoMarketTest is Test {
         deal(DIEM, address(this), 1000e18);
         IERC20(DIEM).approve(address(vault), 1000e18);
         vault.deposit(1000e18, address(this));
-        vault.setFeeRouter(address(this));
+        vault.setVenueAdapter(address(this), true);
 
         uint256 priceBefore = usdcOracle.price();
 
@@ -108,7 +108,7 @@ contract MorphoMarketTest is Test {
         deal(DIEM, address(this), 1000e18);
         IERC20(DIEM).approve(address(vault), 1000e18);
         vault.deposit(1000e18, address(this));
-        vault.setFeeRouter(address(this));
+        vault.setVenueAdapter(address(this), true);
 
         uint256 priceBefore = wethOracle.price();
 

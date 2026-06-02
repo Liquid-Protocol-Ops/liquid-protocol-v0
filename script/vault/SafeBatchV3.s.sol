@@ -31,9 +31,9 @@ contract SafeBatchV3 is Script {
     function run() external {
         vm.startBroadcast(vm.envUint("EXECUTOR_PK"));
 
-        // Wire vault → feeRouter
-        _execSafe(VAULT, abi.encodeWithSignature("setFeeRouter(address)", FEEROUTER));
-        console.log("vault.setFeeRouter done");
+        // Approve FeeRouter as a venue adapter on vault
+        _execSafe(VAULT, abi.encodeWithSignature("setVenueAdapter(address,bool)", FEEROUTER, true));
+        console.log("vault.setVenueAdapter(feeRouter, true) done");
 
         // Wire router → v4Pool
         _execSafe(ROUTER, abi.encodeWithSignature("setV4Pool(address)", POOL_MANAGER));

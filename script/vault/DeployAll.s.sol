@@ -71,7 +71,10 @@ contract DeployAll is Script {
         vm.startBroadcast();
 
         // Phase A: wstDIEM vault
-        InferenceVault vault = new InferenceVault(DIEM, treasury, deployer);
+        // veniceSigner: hot key for Venice API key challenges (separate from Safe).
+        // Set to deployer initially; rotate via setVeniceSigner once keeper key is ready.
+        address veniceSigner = vm.envOr("VENICE_SIGNER_ADDRESS", deployer);
+        InferenceVault vault = new InferenceVault(DIEM, treasury, veniceSigner, deployer);
         console.log("InferenceVault:", address(vault));
 
         // Seed deposit: burn a small position to address(1) to prevent first-depositor
@@ -92,7 +95,7 @@ contract DeployAll is Script {
         FeeRouter feeRouter =
             new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0));
         console.log("FeeRouter:", address(feeRouter));
-        vault.setFeeRouter(address(feeRouter));
+        vault.setVenueAdapter(address(feeRouter), true);
 
         // Phase C: Router
         Router router = new Router(address(vault), WETH, VVV, VVV_STAKING);

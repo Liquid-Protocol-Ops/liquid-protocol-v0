@@ -22,7 +22,7 @@ contract PhaseBIntegrationTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault = new InferenceVault(DIEM, makeAddr("treasury"), address(this));
+        vault = new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
 
         DeployCurvePool d = new DeployCurvePool(address(vault));
         vm.startPrank(alice, alice); // two-arg: satisfies factory EOA guard
