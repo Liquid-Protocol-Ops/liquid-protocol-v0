@@ -447,8 +447,67 @@ contract InferenceVaultTest is Test {
     function test_requestRedeem_revertsZeroShares() public {
         vm.prank(alice); vault.deposit(100e18, alice);
         vm.prank(alice);
-        vm.expectRevert("zero shares");
+        vm.expectRevert("below minRedeemShares");
         vault.requestRedeem(0, alice);
+    }
+
+    function test_requestRedeem_revertsBelowMinimum() public {
+        vm.prank(alice); vault.deposit(100e18, alice);
+        // Raise the minimum above alice's balance (no prank — test contract is owner)
+        vault.setMinRedeemShares(200e18);
+        uint256 shares = vault.balanceOf(alice); // ~99.9e18 < 200e18 min
+        vm.prank(alice);
+        vm.expectRevert("below minRedeemShares");
+        vault.requestRedeem(shares, alice);
+    }
+
+    function test_getRedeemRequests_returnsRequestIds() public {
+        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(bob);   vault.deposit(100e18, bob);
+
+        uint256 aShares = vault.balanceOf(alice);
+        uint256 bShares = vault.balanceOf(bob);
+        vm.prank(alice); uint256 reqA = vault.requestRedeem(aShares, alice);
+        vm.prank(bob);   uint256 reqB = vault.requestRedeem(bShares, bob);
+
+        uint256[] memory aliceReqs = vault.getRedeemRequests(alice);
+        uint256[] memory bobReqs   = vault.getRedeemRequests(bob);
+
+        assertEq(aliceReqs.length, 1);
+        assertEq(aliceReqs[0], reqA);
+        assertEq(bobReqs.length, 1);
+        assertEq(bobReqs[0], reqB);
+    }
+
+    function test_getRedeemRequests_appendsOnMultipleRequests() public {
+        vm.prank(alice); vault.deposit(100e18, alice);
+        // Need two separate deposits for two redemptions
+        diem.mint(alice, 100e18);
+
+        uint256 shares1 = vault.balanceOf(alice) / 2;
+        vm.prank(alice); uint256 req1 = vault.requestRedeem(shares1, alice);
+
+        // Second deposit then second redemption
+        vm.prank(alice); vault.deposit(100e18, alice);
+        uint256 shares2 = vault.balanceOf(alice);
+        vm.prank(alice); uint256 req2 = vault.requestRedeem(shares2, alice);
+
+        uint256[] memory reqs = vault.getRedeemRequests(alice);
+        assertEq(reqs.length, 2);
+        assertEq(reqs[0], req1);
+        assertEq(reqs[1], req2);
+    }
+
+    function test_getRedeemRequests_differentReceiver() public {
+        // requestRedeem tracks by receiver, not msg.sender
+        address charlie = makeAddr("charlie");
+        vm.prank(alice); vault.deposit(100e18, alice);
+        uint256 shares = vault.balanceOf(alice);
+        vm.prank(alice); uint256 reqId = vault.requestRedeem(shares, charlie);
+
+        assertEq(vault.getRedeemRequests(charlie).length, 1);
+        assertEq(vault.getRedeemRequests(charlie)[0], reqId);
+        assertEq(vault.getRedeemRequests(alice).length, 0);
     }
 
     function test_requestRedeem_revertsZeroReceiver() public {

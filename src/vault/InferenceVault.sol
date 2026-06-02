@@ -155,6 +155,14 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     mapping(uint256 => RedeemRequest) public redeemRequests;
     uint256 private _nextRequestId = 1;
 
+    /// @notice Owner → list of requestIds. Enables getRedeemRequests(address).
+    mapping(address => uint256[]) private _ownerRequests;
+
+    /// @notice Minimum wstDIEM shares per requestRedeem call.
+    ///         Prevents dust requests from griefing the 50-user batch cap.
+    ///         Default: 0.001 wstDIEM. Owner-settable.
+    uint256 public minRedeemShares = 1e15;
+
     /// @notice DIEM earmarked for pending requests, excluded from totalAssets().
     ///         Set at requestRedeem; cleared per-request at claimRedeem.
     ///         Keeps convertToAssets() stable throughout the entire withdrawal
@@ -275,8 +283,8 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
         whenNotPaused
         returns (uint256 requestId)
     {
-        require(shares > 0,            "zero shares");
-        require(receiver != address(0), "zero receiver");
+        require(shares >= minRedeemShares, "below minRedeemShares");
+        require(receiver != address(0),   "zero receiver");
 
         uint32 batchId = currentBatch;
         UnstakeBatch storage b = unstakeBatches[batchId];
@@ -302,6 +310,7 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
             batchId:  batchId,
             claimed:  false
         });
+        _ownerRequests[receiver].push(requestId);
 
         emit RedeemRequested(requestId, receiver, batchId, shares, diem);
     }
@@ -380,6 +389,13 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
         RedeemRequest storage req = redeemRequests[requestId];
         UnstakeBatch  storage b   = unstakeBatches[req.batchId];
         return (req.receiver, req.diem, req.batchId, b.unlockAt, b.settled, req.claimed);
+    }
+
+    /// @notice Returns all requestIds created with `receiver` as the recipient.
+    ///         Required for frontends to display a user's pending withdrawals.
+    ///         Analogous to Lido's `getWithdrawalRequests(owner)`.
+    function getRedeemRequests(address owner) external view returns (uint256[] memory) {
+        return _ownerRequests[owner];
     }
 
     // ─── Yield credit ────────────────────────────────────────────────────────
@@ -465,6 +481,10 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     function setMinBatchOpenSecs(uint64 secs) external onlyOwner {
         require(secs <= MAX_BATCH_OPEN_SECS, "exceeds 7-day max");
         minBatchOpenSecs = secs;
+    }
+
+    function setMinRedeemShares(uint256 minShares) external onlyOwner {
+        minRedeemShares = minShares;
     }
 
     function pause()   external onlyOwner { _pause(); }
