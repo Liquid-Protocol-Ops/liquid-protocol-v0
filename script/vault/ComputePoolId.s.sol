@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+import {Script, console} from "forge-std/Script.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+
+contract ComputePoolId is Script {
+    using PoolIdLibrary for PoolKey;
+    function run() external view {
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(0x4200000000000000000000000000000000000006),
+            currency1: Currency.wrap(0x3394898b648385FAd4FE847c52B5E4CCe0D63662),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(address(0))
+        });
+        bytes32 poolId = PoolId.unwrap(key.toId());
+        console.logBytes32(poolId);
+    }
+}

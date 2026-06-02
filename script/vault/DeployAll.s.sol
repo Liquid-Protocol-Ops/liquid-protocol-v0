@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {AgentTGERegistry} from "../../src/vault/AgentTGERegistry.sol";
 import {FeeRouter} from "../../src/vault/FeeRouter.sol";
+import {InferenceProduct} from "../../src/vault/InferenceProduct.sol";
 import {InferenceVault} from "../../src/vault/InferenceVault.sol";
 import {Router} from "../../src/vault/Router.sol";
 import {SurplusStakingWrapper} from "../../src/vault/SurplusStakingWrapper.sol";
@@ -28,6 +29,7 @@ contract DeployAll is Script {
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant VVV = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
     address constant VVV_STAKING = 0x321b7ff75154472B18EDb199033fF4D116F340Ff;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant MORPHO_BLUE = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
     address constant ADAPTIVE_CURVE_IRM = 0x46415998764C29aB2a25CbeA6254146D50D22687;
 
@@ -57,8 +59,8 @@ contract DeployAll is Script {
         vault.setFeeRouter(address(feeRouter));
 
         // Phase C: Router
-        Router router = new Router(address(vault), WETH, VVV_STAKING);
-        router.setCurvePool(curvePool);
+        Router router = new Router(address(vault), WETH, VVV, VVV_STAKING);
+        // Router no longer manages curvePool; FeeRouter handles Curve VOL.
         console.log("Router:", address(router));
 
         // Phase D: AgentTGERegistry
@@ -68,6 +70,11 @@ contract DeployAll is Script {
         // Phase D: SurplusStakingWrapper
         SurplusStakingWrapper wrapper = new SurplusStakingWrapper(address(vault), curvePool);
         console.log("SurplusStakingWrapper:", address(wrapper));
+
+        // Phase D: InferenceProduct — on-chain registry for selling Venice inference capacity
+        InferenceProduct inferenceProduct =
+            new InferenceProduct(USDC, address(feeRouter), deployer);
+        console.log("InferenceProduct:", address(inferenceProduct));
 
         // Phase E: Morpho oracle + market
         // Use deployOracle() directly — DeployMorphoMarket.run() calls vm.startBroadcast() internally,
@@ -97,6 +104,7 @@ contract DeployAll is Script {
         router.transferOwnership(safe);
         registry.transferOwnership(safe);
         wrapper.transferOwnership(safe);
+        inferenceProduct.transferOwnership(safe);
 
         vm.stopBroadcast();
 

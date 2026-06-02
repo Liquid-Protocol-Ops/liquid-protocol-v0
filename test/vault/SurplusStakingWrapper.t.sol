@@ -11,44 +11,88 @@ contract SurplusStakingWrapperTest is Test {
 
     InferenceVault vault;
     SurplusStakingWrapper wrapper;
-    address siUser = makeAddr("siUser");
+    address user = makeAddr("user");
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault = new InferenceVault(DIEM, makeAddr("treasury"), address(this));
-        wrapper = new SurplusStakingWrapper(address(vault), address(0)); // no curvePool yet
+        vault   = new InferenceVault(DIEM, makeAddr("treasury"), address(this));
+        wrapper = new SurplusStakingWrapper(address(vault), address(0));
 
-        deal(DIEM, siUser, 1000e18);
-        vm.prank(siUser);
+        deal(DIEM, user, 1_000e18);
+        vm.prank(user);
         IERC20(DIEM).approve(address(wrapper), type(uint256).max);
     }
 
+    // ── stakeForUser ──────────────────────────────────────────────────────
+
     function test_stakeForUser_mintsWstDIEM() public {
-        vm.prank(siUser);
-        uint256 shares = wrapper.stakeForUser(siUser, 100e18);
+        vm.prank(user);
+        uint256 shares = wrapper.stakeForUser(user, 100e18);
         assertGt(shares, 0);
-        assertEq(vault.balanceOf(siUser), shares);
+        assertEq(vault.balanceOf(user), shares);
     }
 
-    function test_getBalance_returnsVaultBalance() public {
-        vm.prank(siUser);
-        wrapper.stakeForUser(siUser, 100e18);
-        assertEq(wrapper.getBalance(siUser), vault.balanceOf(siUser));
+    function test_stakeForUser_vaultStakesDIEM() public {
+        vm.prank(user);
+        wrapper.stakeForUser(user, 100e18);
+        assertEq(IERC20(DIEM).balanceOf(address(vault)), 0, "vault must stake DIEM, not hold idle");
+        assertEq(vault.totalAssets(), 100e18);
     }
+
+    // ── referralDeposit ───────────────────────────────────────────────────
 
     function test_referralDeposit_mintsShares() public {
-        vm.prank(siUser);
-        uint256 shares = wrapper.referralDeposit(siUser, 100e18, keccak256("ref123"));
+        vm.prank(user);
+        uint256 shares = wrapper.referralDeposit(user, 100e18, keccak256("ref-abc"));
         assertGt(shares, 0);
+        assertEq(vault.balanceOf(user), shares);
     }
 
+    function test_referralDeposit_emitsEvent() public {
+        vm.prank(user);
+        vm.expectEmit(true, false, false, false);
+        emit SurplusStakingWrapper.Staked(user, 100e18, 0, keccak256("ref-abc"));
+        wrapper.referralDeposit(user, 100e18, keccak256("ref-abc"));
+    }
+
+    // ── getBalance / getYield ─────────────────────────────────────────────
+
+    function test_getBalance_returnsVaultBalance() public {
+        vm.prank(user);
+        wrapper.stakeForUser(user, 100e18);
+        assertEq(wrapper.getBalance(user), vault.balanceOf(user));
+    }
+
+    function test_getYield_returnsConvertedAssets() public {
+        vm.prank(user);
+        wrapper.stakeForUser(user, 100e18);
+        uint256 shares = vault.balanceOf(user);
+        assertEq(wrapper.getYield(user), vault.convertToAssets(shares));
+    }
+
+    // ── unstakeForUser ────────────────────────────────────────────────────
+
     function test_unstakeForUser_revertWithoutCurvePool() public {
-        vm.prank(siUser);
-        wrapper.stakeForUser(siUser, 100e18);
-        uint256 shares = vault.balanceOf(siUser);
-        vm.prank(siUser);
+        vm.prank(user);
+        wrapper.stakeForUser(user, 100e18);
+        uint256 shares = vault.balanceOf(user);
+        vm.prank(user);
         IERC20(address(vault)).approve(address(wrapper), shares);
+        vm.expectRevert(abi.encodeWithSignature("CurvePoolNotSet()"));
+        wrapper.unstakeForUser(user, shares, 0);
+    }
+
+    // ── Admin ─────────────────────────────────────────────────────────────
+
+    function test_setCurvePool_onlyOwner() public {
+        vm.prank(user);
         vm.expectRevert();
-        wrapper.unstakeForUser(siUser, shares);
+        wrapper.setCurvePool(makeAddr("pool"));
+    }
+
+    function test_setCurvePool_updates() public {
+        address pool = makeAddr("pool");
+        wrapper.setCurvePool(pool);
+        assertEq(wrapper.curvePool(), pool);
     }
 }

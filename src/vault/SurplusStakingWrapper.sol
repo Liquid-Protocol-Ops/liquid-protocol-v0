@@ -45,12 +45,12 @@ contract SurplusStakingWrapper is Ownable {
         emit Staked(user, diemAmount, shares, ref);
     }
 
-    function unstakeForUser(address user, uint256 wstDIEMAmount) external {
+    function unstakeForUser(address user, uint256 wstDIEMAmount, uint256 minDiemOut) external {
         if (curvePool == address(0)) revert CurvePoolNotSet();
         IERC20(address(vault)).safeTransferFrom(msg.sender, address(this), wstDIEMAmount);
         IERC20(address(vault)).approve(curvePool, wstDIEMAmount);
         // Curve: index 1 = wstDIEM, index 0 = DIEM
-        uint256 diemOut = ICurvePool(curvePool).exchange(1, 0, wstDIEMAmount, 0);
+        uint256 diemOut = ICurvePool(curvePool).exchange(1, 0, wstDIEMAmount, minDiemOut);
         IERC20(vault.asset()).safeTransfer(user, diemOut);
         emit Unstaked(user, wstDIEMAmount, diemOut);
     }

@@ -6,36 +6,101 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+interface ISwapRouterV3 {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+    struct ExactInputParams {
+        bytes path;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+    }
+    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256);
+    function exactInput(ExactInputParams calldata params) external returns (uint256);
+}
+
 interface IVVVStaking {
-    function stake(uint256 vvvAmount) external returns (uint256 sVVV);
-    function lock(uint256 sVVVAmount) external returns (uint256 diemMinted);
+    function stake(address to, uint256 vvvAmount) external;
+    // mintDiem returns void — use balance delta to measure DIEM output.
+    function mintDiem(uint256 sVVVAmount, uint256 minDiemOut) external;
 }
 
 interface ICurvePool {
-    function add_liquidity(uint256[] calldata amounts, uint256 min_mint_amount)
-        external
-        returns (uint256);
+    function add_liquidity(uint256[] calldata amounts, uint256 min_mint_amount) external returns (uint256);
 }
 
 contract FeeRouter is Ownable {
     using SafeERC20 for IERC20;
 
+    // Routing modes — owner (or governance) chooses per income type.
+    // CREDIT_VAULT: convert to DIEM → vault.creditDIEM() (increases wstDIEM rate)
+    // CURVE_VOL:    convert to wstDIEM → add to Curve VOL position
+    // HOLD:         accumulate in FeeRouter; manual sweep by owner
+    enum FeeMode { CREDIT_VAULT, CURVE_VOL, HOLD }
+
+    // Uniswap V3 SwapRouter02 on Base
+    address constant V3_ROUTER   = 0x2626664c2603336E57B271c5C0b26F421741e481;
+    address constant USDC        = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    uint24  constant DIEM_FEE    = 10_000; // WETH/DIEM V3 1%
+    uint24  constant USDC_WETH_FEE = 500; // USDC/WETH V3 0.05%
+
     IInferenceVault public immutable vault;
     address public immutable weth;
     address public immutable vvv;
     address public immutable vvvStaking;
-    address public curvePool;
-    address public v4Pool;
 
-    uint256 public maxSlippageBps = 50;
+    address public curvePool;
+
+    // Routing modes (configurable by owner/governance)
+    FeeMode public wethMode    = FeeMode.CREDIT_VAULT;
+    FeeMode public usdcMode    = FeeMode.CREDIT_VAULT;
+    FeeMode public vvvMode     = FeeMode.CREDIT_VAULT;
+    FeeMode public wstDiemMode = FeeMode.CURVE_VOL;
+
     uint256 public vvvBatchThreshold = 100e18;
 
-    uint256 private _pendingVVV;
-    uint256 private _pendingWETH;
+    // Governance: address(0) = governance not yet initialized (owner controls).
+    // Once set, governance contract takes ownership. Owner can transfer to gov.
+    address public governance;
 
-    event WETHHarvested(uint256 wethIn, uint256 wstDIEMOut);
-    event WstDIEMHarvested(uint256 amount);
+    uint256 private _pendingWETH;
+    uint256 private _pendingUSDC;
+    uint256 private _pendingVVV;
+
+    // ── Channel registry ──────────────────────────────────────────────────────
+    // Each entry is an external inference marketplace (Surplus Intelligence, AntSeed, etc.).
+    // The vault manager (Safe) registers channels via addChannel(). The keeper reads
+    // payoutWallet to configure its x402 settlement address and platformFeeBps to
+    // account for the marketplace's cut. receiveFromChannel() accepts net USDC
+    // (after the marketplace fee has already been deducted off-chain by the keeper).
+    struct Channel {
+        string  name;            // human label: "SurplusIntelligence", "AntSeed", …
+        address payoutWallet;    // keeper EOA x402 settles to; keeper calls receiveFromChannel
+        uint256 platformFeeBps;  // marketplace's fee rate (informational — deducted off-chain)
+        bool    active;
+        uint256 totalRevenue;    // lifetime net USDC routed to vault from this channel
+    }
+
+    mapping(uint256 => Channel) public channels;
+    uint256 public nextChannelId;
+
+    event WETHReceived(uint256 amount);
+    event USDCReceived(uint256 amount);
+    event VVVReceived(uint256 amount);
+    event Harvested(uint256 diemCredited, uint256 wstDiemToVOL);
     event VVVHarvested(uint256 vvvIn, uint256 diemCredited);
+    event FeeModeChanged(string token, FeeMode mode);
+    event GovernanceInitialized(address governance);
+    event ChannelAdded(uint256 indexed channelId, string name, address payoutWallet, uint256 platformFeeBps);
+    event ChannelUpdated(uint256 indexed channelId);
+    event ChannelRevenue(uint256 indexed channelId, string name, uint256 amount);
 
     constructor(
         address _vault,
@@ -43,26 +108,31 @@ contract FeeRouter is Ownable {
         address _vvv,
         address _vvvStaking,
         address _curvePool,
-        address _v4Pool
+        address /*_v4Pool*/   // reserved for ABI compat; unused
     ) Ownable(msg.sender) {
-        vault = IInferenceVault(_vault);
-        weth = _weth;
-        vvv = _vvv;
+        vault      = IInferenceVault(_vault);
+        weth       = _weth;
+        vvv        = _vvv;
         vvvStaking = _vvvStaking;
-        curvePool = _curvePool;
-        v4Pool = _v4Pool;
+        curvePool  = _curvePool;
     }
 
-    // --- Receive paths ---
+    // ── Receive paths ─────────────────────────────────────────────────────
 
     function receiveWETH(uint256 amount) external {
         IERC20(weth).safeTransferFrom(msg.sender, address(this), amount);
         _pendingWETH += amount;
+        emit WETHReceived(amount);
     }
 
-    // Accumulates wstDIEM in this contract; routed to Curve VOL on harvest().
-    // NOTE: intentionally does NOT call _addWstDIEMToVOL here — curvePool may
-    // be an EOA during tests and a high-level call to a codeless address reverts.
+    // Inference revenue from external providers (AntSeed/Surplus AI → USDC).
+    // USDC is routed per usdcMode; default CREDIT_VAULT increases wstDIEM rate.
+    function receiveUSDC(uint256 amount) external {
+        IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
+        _pendingUSDC += amount;
+        emit USDCReceived(amount);
+    }
+
     function receivewstDIEM(uint256 amount) external {
         IERC20(address(vault)).safeTransferFrom(msg.sender, address(this), amount);
     }
@@ -70,68 +140,142 @@ contract FeeRouter is Ownable {
     function receiveVVV(uint256 amount) external {
         IERC20(vvv).safeTransferFrom(msg.sender, address(this), amount);
         _pendingVVV += amount;
+        emit VVVReceived(amount);
     }
 
-    // --- Harvest paths ---
+    // Route inference revenue from a registered external marketplace (Surplus Intelligence,
+    // AntSeed, etc.). Caller passes the NET amount after the marketplace's platform fee.
+    // Any address can call — the channelId tags the source for analytics; USDC enters
+    // the same pending queue as receiveUSDC() and is harvested on the next harvest() call.
+    function receiveFromChannel(uint256 channelId, uint256 amount) external {
+        Channel storage c = channels[channelId];
+        require(c.active, "channel inactive");
+        IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
+        _pendingUSDC        += amount;
+        c.totalRevenue      += amount;
+        emit ChannelRevenue(channelId, c.name, amount);
+        emit USDCReceived(amount);
+    }
 
-    /// @notice Flush all pending fee tokens to Curve VOL.
-    function harvest() external {
-        // WETH path: swap → wstDIEM (stub until Phase E V4 wiring)
-        uint256 pending = _pendingWETH;
-        if (pending > 0) {
+    // ── Harvest: WETH + USDC ──────────────────────────────────────────────
+
+    // Restricted to owner/governance to prevent sandwich attacks on zero-slippage swaps.
+    // Routes pending WETH and USDC according to their configured FeeMode.
+    // CREDIT_VAULT (default): swap to DIEM → vault.creditDIEM() → wstDIEM rate up.
+    // CURVE_VOL: swap to wstDIEM → add to Curve VOL position.
+    // HOLD: no action; tokens remain in FeeRouter until owner sweeps.
+    function harvest() external onlyOwner {
+        address diem   = vault.asset();
+        uint256 diemBefore = IERC20(diem).balanceOf(address(this));
+
+        // --- WETH ---
+        uint256 pendingW = _pendingWETH;
+        if (pendingW > 0 && wethMode != FeeMode.HOLD) {
             _pendingWETH = 0;
-            uint256 wstDIEMOut = _swapWETHForWstDIEM(pending);
-            if (wstDIEMOut > 0) {
-                _addWstDIEMToVOL(wstDIEMOut);
-                emit WETHHarvested(pending, wstDIEMOut);
+            if (wethMode == FeeMode.CREDIT_VAULT) {
+                IERC20(weth).approve(V3_ROUTER, pendingW);
+                ISwapRouterV3(V3_ROUTER).exactInputSingle(
+                    ISwapRouterV3.ExactInputSingleParams({
+                        tokenIn: weth, tokenOut: diem, fee: DIEM_FEE,
+                        recipient: address(this), amountIn: pendingW,
+                        amountOutMinimum: 0, sqrtPriceLimitX96: 0
+                    })
+                );
+            } else {
+                // CURVE_VOL: WETH → wstDIEM via vault deposit then add to VOL
+                IERC20(weth).approve(V3_ROUTER, pendingW);
+                uint256 diemOut = ISwapRouterV3(V3_ROUTER).exactInputSingle(
+                    ISwapRouterV3.ExactInputSingleParams({
+                        tokenIn: weth, tokenOut: diem, fee: DIEM_FEE,
+                        recipient: address(this), amountIn: pendingW,
+                        amountOutMinimum: 0, sqrtPriceLimitX96: 0
+                    })
+                );
+                if (diemOut > 0) {
+                    IERC20(diem).approve(address(vault), diemOut);
+                    uint256 wstDiemOut = vault.deposit(diemOut, address(this));
+                    _addWstDIEMToVOL(wstDiemOut);
+                }
             }
         }
 
-        // wstDIEM path: flush accumulated receivewstDIEM balance to Curve VOL
-        uint256 heldWstDIEM = IERC20(address(vault)).balanceOf(address(this));
-        if (heldWstDIEM > 0) {
-            _addWstDIEMToVOL(heldWstDIEM); // _addWstDIEMToVOL emits WstDIEMHarvested
+        // --- USDC ---
+        uint256 pendingU = _pendingUSDC;
+        if (pendingU > 0 && usdcMode != FeeMode.HOLD) {
+            _pendingUSDC = 0;
+            // USDC → WETH → DIEM multi-hop
+            IERC20(USDC).approve(V3_ROUTER, pendingU);
+            bytes memory path = abi.encodePacked(USDC, USDC_WETH_FEE, weth, DIEM_FEE, diem);
+            uint256 diemOut = ISwapRouterV3(V3_ROUTER).exactInput(
+                ISwapRouterV3.ExactInputParams({
+                    path: path, recipient: address(this),
+                    amountIn: pendingU, amountOutMinimum: 0
+                })
+            );
+            if (usdcMode == FeeMode.CURVE_VOL && diemOut > 0) {
+                IERC20(diem).approve(address(vault), diemOut);
+                uint256 wstDiemOut = vault.deposit(diemOut, address(this));
+                _addWstDIEMToVOL(wstDiemOut);
+                diemOut = 0; // consumed by VOL, not creditDIEM
+            }
         }
+
+        // --- wstDIEM balance (from receivewstDIEM) ---
+        uint256 heldWstDIEM = IERC20(address(vault)).balanceOf(address(this));
+        if (heldWstDIEM > 0 && wstDiemMode != FeeMode.HOLD) {
+            _addWstDIEMToVOL(heldWstDIEM);
+        }
+
+        // --- Credit vault with all acquired DIEM (CREDIT_VAULT paths) ---
+        uint256 diemAcquired = IERC20(diem).balanceOf(address(this)) - diemBefore;
+        if (diemAcquired > 0) {
+            IERC20(diem).approve(address(vault), diemAcquired);
+            vault.creditDIEM(diemAcquired);
+        }
+
+        // heldWstDIEM = actual wstDIEM sent to Curve VOL this harvest
+        emit Harvested(diemAcquired, heldWstDIEM);
     }
 
-    /// @notice Batch-stake pending VVV → lock sVVV → mint DIEM → credit vault.
-    /// No-op below vvvBatchThreshold to amortise gas.
-    function harvestVVV() external {
+    // ── Harvest: VVV → sVVV → mintDiem → creditDIEM/VOL ─────────────────
+
+    function harvestVVV() external onlyOwner {
         uint256 pending = _pendingVVV;
         if (pending < vvvBatchThreshold) return;
         _pendingVVV = 0;
 
-        // Step 1: VVV → sVVV
-        IERC20(vvv).approve(vvvStaking, pending);
-        uint256 sVVV = IVVVStaking(vvvStaking).stake(pending);
-
-        // Step 2: sVVV → DIEM
-        // TODO: verify sVVV token address — VVV_STAKING may issue sVVV as a
-        // separate ERC-20; approval target should be the sVVV token, not the
-        // staking contract, if they differ on Base mainnet.
-        IERC20(vvvStaking).approve(vvvStaking, sVVV);
-        uint256 diemMinted = IVVVStaking(vvvStaking).lock(sVVV);
-
-        // Step 3: credit vault non-dilutively
         address diem = vault.asset();
-        IERC20(diem).approve(address(vault), diemMinted);
-        vault.creditDIEM(diemMinted);
+        uint256 diemBefore = IERC20(diem).balanceOf(address(this));
 
-        emit VVVHarvested(pending, diemMinted);
+        IERC20(vvv).approve(vvvStaking, pending);
+        IVVVStaking(vvvStaking).stake(address(this), pending);
+
+        uint256 sVVV = IERC20(vvvStaking).balanceOf(address(this));
+        IVVVStaking(vvvStaking).mintDiem(sVVV, 0);
+
+        uint256 diemMinted = IERC20(diem).balanceOf(address(this)) - diemBefore;
+        if (diemMinted > 0) {
+            if (vvvMode == FeeMode.CREDIT_VAULT) {
+                IERC20(diem).approve(address(vault), diemMinted);
+                vault.creditDIEM(diemMinted);
+            } else if (vvvMode == FeeMode.CURVE_VOL) {
+                IERC20(diem).approve(address(vault), diemMinted);
+                uint256 wstOut = vault.deposit(diemMinted, address(this));
+                _addWstDIEMToVOL(wstOut);
+                diemMinted = 0;
+            }
+            // HOLD: DIEM stays in FeeRouter
+            emit VVVHarvested(pending, diemMinted);
+        }
     }
 
-    // --- Internal helpers ---
+    // ── Owner sweep (for HOLD mode or emergency) ──────────────────────────
 
-    /// @dev TWAP-guarded V4 swap wired in Phase E; stub returns 0 for now.
-    function _swapWETHForWstDIEM(
-        uint256 /*wethAmount*/
-    )
-        internal
-        pure
-        returns (uint256)
-    {
-        return 0;
+    function sweep(address token, address to, uint256 amount) external onlyOwner {
+        IERC20(token).safeTransfer(to, amount);
     }
+
+    // ── Internal ──────────────────────────────────────────────────────────
 
     function _addWstDIEMToVOL(uint256 wstDIEMAmount) internal {
         if (curvePool == address(0) || wstDIEMAmount == 0) return;
@@ -140,34 +284,79 @@ contract FeeRouter is Ownable {
         amounts[0] = 0;
         amounts[1] = wstDIEMAmount;
         ICurvePool(curvePool).add_liquidity(amounts, 0);
-        emit WstDIEMHarvested(wstDIEMAmount);
     }
 
-    // --- Views ---
+    // ── Views ─────────────────────────────────────────────────────────────
 
-    function pendingVVV() external view returns (uint256) {
-        return _pendingVVV;
+    function pendingWETH() external view returns (uint256) { return _pendingWETH; }
+    function pendingUSDC() external view returns (uint256) { return _pendingUSDC; }
+    function pendingVVV()  external view returns (uint256) { return _pendingVVV; }
+
+    // ── Owner / Governance config ─────────────────────────────────────────
+
+    function setWethMode(FeeMode mode) external onlyOwner { wethMode = mode; emit FeeModeChanged("WETH", mode); }
+    function setUsdcMode(FeeMode mode) external onlyOwner { usdcMode = mode; emit FeeModeChanged("USDC", mode); }
+    function setVvvMode(FeeMode mode)  external onlyOwner { vvvMode  = mode; emit FeeModeChanged("VVV",  mode); }
+    function setWstDiemMode(FeeMode mode) external onlyOwner { wstDiemMode = mode; emit FeeModeChanged("wstDIEM", mode); }
+
+    function setVVVBatchThreshold(uint256 amt) external onlyOwner { vvvBatchThreshold = amt; }
+
+    function setCurvePool(address pool) external onlyOwner { curvePool = pool; }
+
+    // One-time governance initialization. Transfers ownership to a governance
+    // contract (timelock, DAO, etc.). Cannot be undone except by governance itself.
+    // Off at launch — call when protocol is ready for decentralized control.
+    function initializeGovernance(address gov) external onlyOwner {
+        require(governance == address(0), "already initialized");
+        require(gov != address(0), "zero address");
+        governance = gov;
+        transferOwnership(gov);
+        emit GovernanceInitialized(gov);
     }
 
-    function pendingWETH() external view returns (uint256) {
-        return _pendingWETH;
+    // ── Channel management (vault manager / Safe) ─────────────────────────
+
+    // Register a new inference marketplace integration.
+    // name:            human label shown in events/analytics (e.g. "SurplusIntelligence")
+    // payoutWallet:    keeper EOA where x402 settles; keeper reads this to configure its server
+    // platformFeeBps:  marketplace's take rate (informational; keeper deducts before calling receiveFromChannel)
+    function addChannel(string calldata name, address payoutWallet, uint256 platformFeeBps)
+        external
+        onlyOwner
+        returns (uint256 channelId)
+    {
+        require(platformFeeBps <= 5_000, "fee > 50%");
+        channelId = nextChannelId++;
+        channels[channelId] = Channel({
+            name:           name,
+            payoutWallet:   payoutWallet,
+            platformFeeBps: platformFeeBps,
+            active:         true,
+            totalRevenue:   0
+        });
+        emit ChannelAdded(channelId, name, payoutWallet, platformFeeBps);
     }
 
-    // --- Admin ---
-
-    function setMaxSlippageBps(uint256 bps) external onlyOwner {
-        maxSlippageBps = bps;
+    function setChannelActive(uint256 channelId, bool active) external onlyOwner {
+        channels[channelId].active = active;
+        emit ChannelUpdated(channelId);
     }
 
-    function setVVVBatchThreshold(uint256 amt) external onlyOwner {
-        vvvBatchThreshold = amt;
+    // Update the keeper wallet for a channel (e.g., key rotation, new integration config).
+    function setChannelPayoutWallet(uint256 channelId, address payoutWallet) external onlyOwner {
+        channels[channelId].payoutWallet = payoutWallet;
+        emit ChannelUpdated(channelId);
     }
 
-    function setCurvePool(address pool) external onlyOwner {
-        curvePool = pool;
+    function setChannelFee(uint256 channelId, uint256 platformFeeBps) external onlyOwner {
+        require(platformFeeBps <= 5_000, "fee > 50%");
+        channels[channelId].platformFeeBps = platformFeeBps;
+        emit ChannelUpdated(channelId);
     }
 
-    function setV4Pool(address pool) external onlyOwner {
-        v4Pool = pool;
+    // ── Channel views ─────────────────────────────────────────────────────
+
+    function getChannel(uint256 channelId) external view returns (Channel memory) {
+        return channels[channelId];
     }
 }
