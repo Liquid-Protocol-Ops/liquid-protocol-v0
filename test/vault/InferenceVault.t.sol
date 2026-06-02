@@ -467,8 +467,8 @@ contract InferenceVaultTest is Test {
         vm.prank(alice); vault.requestRedeem(shares, alice);
         _warpBatchOpen();
         vault.flush();
-        (, uint256 unstaking,) = diem.stakedInfos(address(vault));
-        assertGt(unstaking, 0);
+        (,, uint256 coolDownAmount) = diem.stakedInfos(address(vault));
+        assertGt(coolDownAmount, 0);
     }
 
     function test_flush_advancesCurrentBatch() public {

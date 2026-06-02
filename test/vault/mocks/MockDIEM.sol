@@ -45,13 +45,17 @@ contract MockDIEM is ERC20 {
         _mint(msg.sender, amount);
     }
 
+    // Return order matches verified Diem.sol on Base:
+    //   slot 0: amountStaked  (active stake)
+    //   slot 1: coolDownEnd   (timestamp — NOT an amount)
+    //   slot 2: coolDownAmount (DIEM queued for withdrawal)
     function stakedInfos(address account)
         external
         view
-        returns (uint256 stakedAmount, uint256 unstakingAmount, uint256 cooldownEnd)
+        returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount)
     {
         StakedInfo storage info = _infos[account];
-        return (info.stakedAmount, info.unstakingAmount, info.cooldownEnd);
+        return (info.stakedAmount, info.cooldownEnd, info.unstakingAmount);
     }
 
     function cooldownDuration() external pure returns (uint256) {

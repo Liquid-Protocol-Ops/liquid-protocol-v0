@@ -18,8 +18,12 @@ interface IDIEM is IERC20 {
     function stake(uint256 amount) external;
     function initiateUnstake(uint256 amount) external;
     function unstake() external;
+    // Real field order confirmed from verified Diem.sol source on Sourcify:
+    //   slot 0: amountStaked   — actively staked DIEM
+    //   slot 1: coolDownEnd    — cooldown expiry TIMESTAMP (not an amount)
+    //   slot 2: coolDownAmount — DIEM queued for withdrawal
     function stakedInfos(address account)
-        external view returns (uint256 stakedAmount, uint256 unstakingAmount, uint256 cooldownEnd);
+        external view returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
     function cooldownDuration() external view returns (uint256);
 }
 
@@ -182,8 +186,8 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     /// @dev Subtracts pendingWithdrawalDiem (earmarked for withdrawal) from gross
     ///      DIEM so convertToAssets() is unaffected by in-flight redemptions.
     function totalAssets() public view override returns (uint256) {
-        (uint256 staked, uint256 unstaking,) = IDIEM(asset()).stakedInfos(address(this));
-        uint256 gross = IERC20(asset()).balanceOf(address(this)) + staked + unstaking;
+        (uint256 amountStaked,, uint256 coolDownAmount) = IDIEM(asset()).stakedInfos(address(this));
+        uint256 gross = IERC20(asset()).balanceOf(address(this)) + amountStaked + coolDownAmount;
         return gross - pendingWithdrawalDiem;
     }
 
