@@ -55,13 +55,13 @@ contract DeployAll is Script {
         InferenceVault vault = new InferenceVault(DIEM, treasury, deployer);
         console.log("InferenceVault:", address(vault));
 
-        // Seed deposit — burns 1 DIEM worth of shares to address(1) to prevent the
-        // first-depositor inflation attack. Deployer must hold at least 1e18 DIEM.
-        // The +1 virtual buffer alone is insufficient; a seed makes the attack uneconomical.
-        uint256 SEED = 1e18; // 1 DIEM
+        // Seed deposit: burn a small position to address(1) to prevent first-depositor
+        // inflation attack. Even 0.01 DIEM makes the attack require donating ~1e34 DIEM
+        // (far more than total supply). Deployer needs only this amount of DIEM.
+        uint256 SEED = 1e16; // 0.01 DIEM
         IERC20(DIEM).approve(address(vault), SEED);
-        vault.deposit(SEED, address(1)); // address(1) = effectively burned
-        console.log("Vault seeded with 1 DIEM (shares to address(1))");
+        vault.deposit(SEED, address(1));
+        console.log("Vault seeded (0.01 DIEM burned to address(1))");
 
         // Phase B: Curve DIEM/wstDIEM pool
         // Use deployPool() (no nested broadcast) — run() would call vm.startBroadcast() again
