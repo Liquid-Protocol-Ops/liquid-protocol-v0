@@ -41,8 +41,11 @@ interface IPoolManager {
         bytes32 salt;
     }
     function unlock(bytes calldata data) external returns (bytes memory);
+    // Returns (BalanceDelta callerDelta, BalanceDelta feesAccrued).
+    // BalanceDelta is a packed int256: upper 128 bits = amount0, lower 128 bits = amount1.
+    // Negative amount = caller owes tokens to PoolManager (must settle).
     function modifyLiquidity(PoolKey calldata key, ModifyLiquidityParams calldata params, bytes calldata hookData)
-        external returns (int256 delta0, int256 delta1, int256 feeDelta);
+        external returns (int256 callerDelta, int256 feesAccrued);
     function sync(address currency) external;
     function settle() external payable returns (uint256 paid);
     function take(address currency, address to, uint256 amount) external;
@@ -117,24 +120,30 @@ contract LiquidityHelper {
             salt:           bytes32(0)
         });
 
-        (int256 delta0, int256 delta1,) = IPoolManager(poolManager).modifyLiquidity(key, params, "");
+        // callerDelta is a packed BalanceDelta (int256):
+        //   amount0 = int128(callerDelta >> 128)  [upper 128 bits]
+        //   amount1 = int128(callerDelta)          [lower 128 bits]
+        // Negative = caller owes that token to PoolManager (must settle).
+        (int256 callerDelta,) = IPoolManager(poolManager).modifyLiquidity(key, params, "");
 
-        // Settle: pay PoolManager the tokens it expects (positive delta = we owe)
-        if (delta0 < 0) {
-            uint256 amount0 = uint256(-delta0);
+        int128 amount0 = int128(callerDelta >> 128);
+        int128 amount1 = int128(callerDelta);
+
+        if (amount0 < 0) {
+            uint256 toSettle0 = uint256(uint128(-amount0));
             IPoolManager(poolManager).sync(key.currency0);
-            IERC20(key.currency0).transfer(poolManager, amount0);
+            IERC20(key.currency0).transfer(poolManager, toSettle0);
             IPoolManager(poolManager).settle();
         }
-        if (delta1 < 0) {
-            uint256 amount1 = uint256(-delta1);
+        if (amount1 < 0) {
+            uint256 toSettle1 = uint256(uint128(-amount1));
             IPoolManager(poolManager).sync(key.currency1);
-            IERC20(key.currency1).transfer(poolManager, amount1);
+            IERC20(key.currency1).transfer(poolManager, toSettle1);
             IPoolManager(poolManager).settle();
         }
 
-        console.log("LP added: delta0 =", uint256(delta0 < 0 ? -delta0 : delta0));
-        console.log("LP added: delta1 =", uint256(delta1 < 0 ? -delta1 : delta1));
+        console.log("LP settled: WETH  =", amount0 < 0 ? uint256(uint128(-amount0)) : 0);
+        console.log("LP settled: wstDIEM =", amount1 < 0 ? uint256(uint128(-amount1)) : 0);
         return "";
     }
 }
@@ -169,7 +178,7 @@ contract SafeAddV4LP is Script {
     //
     // The helper receives 2.74 wstDIEM + 0.002 WETH and returns any unused tokens to Safe.
     // The remaining ~1.998 WETH stays in Safe untouched.
-    uint128 constant LIQUIDITY      = 123_000_000_000_000_000; // 1.23e17 L units
+    uint128 constant LIQUIDITY      = 122_000_000_000_000_000; // 1.23e17 L units
     uint256 constant WSTDIEM_BUDGET = 2.74e18;   // exact — all from SafeSeedCapital deposit
     uint256 constant WETH_BUDGET    = 0.002e18;  // slight buffer over 0.00153; excess returned
 
