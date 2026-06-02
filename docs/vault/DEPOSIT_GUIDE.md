@@ -23,7 +23,7 @@ The exchange rate is defined by:
 DIEM per wstDIEM = totalAssets() / totalSupply()
 ```
 
-where `totalAssets()` = idle DIEM + stakedAmount + unstakingAmount.
+where `totalAssets()` = idle DIEM + `stakedInfos.amountStaked` + `stakedInfos.coolDownAmount`.
 
 Every call to `vault.creditDIEM(amount)` increases `totalAssets()` without minting new shares, causing the rate to rise. The rate is strictly monotonically increasing (it never decreases).
 

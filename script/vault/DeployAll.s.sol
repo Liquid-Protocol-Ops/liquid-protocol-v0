@@ -98,7 +98,7 @@ contract DeployAll is Script {
         vault.setVenueAdapter(address(feeRouter), true);
 
         // Phase C: Router
-        Router router = new Router(address(vault), WETH, VVV, VVV_STAKING);
+        Router router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
         // Router no longer manages curvePool; FeeRouter handles Curve VOL.
         console.log("Router:", address(router));
 

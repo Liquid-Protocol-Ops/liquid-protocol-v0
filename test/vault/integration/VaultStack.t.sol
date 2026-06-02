@@ -34,7 +34,7 @@ contract VaultStackIntegrationTest is Test {
 
         vault     = new InferenceVault(DIEM, treasury, makeAddr("veniceSigner"), address(this));
         feeRouter = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, address(0), address(0));
-        router    = new Router(address(vault), WETH, VVV, VVV_STAKING);
+        router    = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
         registry  = new AgentTGERegistry(address(feeRouter), address(this));
         wrapper   = new SurplusStakingWrapper(address(vault), address(0));
 

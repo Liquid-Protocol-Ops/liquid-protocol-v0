@@ -13,8 +13,10 @@ wstDIEM (Wrapped Staked DIEM) is an ERC-4626 vault that wraps sDIEM — staked D
 **Key invariant:** DIEM never leaves the vault. `DIEM.stake()` moves DIEM from `balanceOf` into Venice's internal `stakedInfos`. `totalAssets()` sums all three buckets:
 
 ```
-totalAssets() = idle DIEM (balanceOf) + stakedAmount + unstakingAmount
+totalAssets() = idle DIEM (balanceOf) + amountStaked + coolDownAmount
 ```
+
+`stakedInfos(vault)` returns `(amountStaked, coolDownEnd, coolDownAmount)` — the second field is a UNIX timestamp (cooldown expiry), not an amount.
 
 ---
 
@@ -59,7 +61,7 @@ Fee is captured by minting additional shares to the `treasury` address (the Safe
 
 **Withdrawal gate:** Withdrawals are disabled by default. The owner must call `initiateEnableWithdrawals()`, wait 14 days, then call `enableWithdrawals()`. Even after enabled, `maxWithdraw` is capped to the idle DIEM balance — only unstaked DIEM can be sent out. The primary liquidity path for users is the Curve DIEM/wstDIEM pool, not direct vault withdrawals.
 
-**Unstaking flow:** Owner calls `initiateUnstake(amount)` → wait 24h cooldown → `completeUnstake()` → DIEM moves from `stakedInfos.unstakingAmount` back to `balanceOf`.
+**Unstaking flow:** Owner calls `initiateUnstake(amount)` → wait 24h cooldown → `completeUnstake()` → DIEM moves from `stakedInfos.coolDownAmount` back to `balanceOf`.
 
 ### FeeRouter
 

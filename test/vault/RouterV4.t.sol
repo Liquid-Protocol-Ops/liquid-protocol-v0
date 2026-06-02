@@ -96,7 +96,7 @@ contract RouterV4Test is Test {
         vault = InferenceVault(VAULT_ADDR);
 
         // Deploy fresh Router v6 pointing at the live vault
-        router = new Router(VAULT_ADDR, WETH, VVV, VVV_STAKING);
+        router = new Router(VAULT_ADDR, WETH, VVV, VVV_STAKING, address(0));
         router.setV4Pool(POOL_MANAGER);
         // v4PoolId removed from Router — PoolKey is reconstructed from immutables in unlockCallback
 
@@ -195,7 +195,7 @@ contract RouterV4Test is Test {
 
     function test_exitToWETH_revertWithoutPool() public {
         // Fresh router with no v4Pool set
-        Router freshRouter = new Router(VAULT_ADDR, WETH, VVV, VVV_STAKING);
+        Router freshRouter = new Router(VAULT_ADDR, WETH, VVV, VVV_STAKING, address(0));
 
         vm.prank(alice);
         vault.deposit(10e18, alice);

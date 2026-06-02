@@ -47,7 +47,7 @@ Token launchpad forked from Clanker V4.1. Deploys ERC-20 tokens with permanent U
 ### 2. wstDIEM Vault (new subsystem in `src/vault/`)
 ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM is liquid staked DIEM — analogous to wstETH.
 
-**Key invariant:** DIEM never leaves the vault. `DIEM.stake()` moves DIEM from `balanceOf` into Venice's internal `stakedInfos`. `totalAssets()` sums all three buckets: `idle + stakedAmount + unstakingAmount`.
+**Key invariant:** DIEM never leaves the vault. `DIEM.stake()` moves DIEM from `balanceOf` into Venice's internal `stakedInfos`. `totalAssets()` sums all three buckets: `idle + amountStaked + coolDownAmount`. `stakedInfos(addr)` returns `(amountStaked, coolDownEnd, coolDownAmount)` — field 1 is a timestamp, not an amount.
 
 **Contract responsibilities:**
 

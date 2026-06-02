@@ -1,10 +1,10 @@
 # wstDIEM Liquid Inference Vault — Base Mainnet Addresses
 
-**Last updated:** 2026-06-01 (v3 — all bugs fixed, new deployer)
+**Last updated:** 2026-06-02 (v4 — new deployer v3)
 **Chain:** Base mainnet (chain 8453)
 **Owner (Safe):** `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
 **Treasury:** `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
-**Deployer v2:** `0x6002820A323bC6B44fe54059ea6964a36Be4b1f6` (1P: `n3lwxz4u4un7xog24wjpyc5ga4` in `base` vault)
+**Deployer v3:** `0x66205fdA77114A5357E7bDcac6dDb356cfF0063b` (1P: `jq4xbffwt3m6nrfn6ompar6nzm` in `base` vault, field `password`)
 
 ---
 
@@ -12,27 +12,40 @@
 
 | Contract | Address | Basescan |
 |----------|---------|---------|
-| `InferenceVault` (wstDIEM) | `0x3394898b648385FAd4FE847c52B5E4CCe0D63662` | [view](https://basescan.org/address/0x3394898b648385FAd4FE847c52B5E4CCe0D63662) |
-| `FeeRouter` | `0x33B218bd86046AAd25c209B1d7Adb7e8A6648387` | [view](https://basescan.org/address/0x33B218bd86046AAd25c209B1d7Adb7e8A6648387) |
-| `Router` v7 | `0xA92EF6a90058f52556e74504324D28D7EC8d49a2` | [view](https://basescan.org/address/0xA92EF6a90058f52556e74504324D28D7EC8d49a2) |
-| `AgentTGERegistry` | `0xcD30D20a8053f9B0abe408CB1c7e6cFDff3c0D83` | [view](https://basescan.org/address/0xcD30D20a8053f9B0abe408CB1c7e6cFDff3c0D83) |
-| `SurplusStakingWrapper` | `0x3bcfc3AFEEe1F3077fD15c9FBE9FDaD13e47a283` | [view](https://basescan.org/address/0x3bcfc3AFEEe1F3077fD15c9FBE9FDaD13e47a283) |
-| Curve DIEM/wstDIEM | `0x01773049bA5c5cEF28072e5c071a629b4dee555c` | [view](https://basescan.org/address/0x01773049bA5c5cEF28072e5c071a629b4dee555c) |
+| `InferenceVault` (wstDIEM) | `0x4751BA2b09374C1929FC01734a166e3c8cd75810` | [view](https://basescan.org/address/0x4751BA2b09374C1929FC01734a166e3c8cd75810) |
+| `FeeRouter` | `0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61` | [view](https://basescan.org/address/0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61) |
+| `Router` v8 | `0x6f5FF03a91cb1703B7CB8d85572f990bcB04273D` | [view](https://basescan.org/address/0x6f5FF03a91cb1703B7CB8d85572f990bcB04273D) |
+| `AgentTGERegistry` | `0x49be7fE8D661b892AC0461818a5C714574e83998` | [view](https://basescan.org/address/0x49be7fE8D661b892AC0461818a5C714574e83998) |
+| `SurplusStakingWrapper` | `0xB0f9c45dAacD89F0d90cbE0E65d0dA20fa1ac415` | [view](https://basescan.org/address/0xB0f9c45dAacD89F0d90cbE0E65d0dA20fa1ac415) |
+| `InferenceProduct` | `0x9b7d8B23cb223F75F5F1Ead25f12205940960F62` | [view](https://basescan.org/address/0x9b7d8B23cb223F75F5F1Ead25f12205940960F62) |
+| Curve DIEM/wstDIEM | `0x39A4b4779C71E1A18d500627639682c9583Ee86f` | [view](https://basescan.org/address/0x39A4b4779C71E1A18d500627639682c9583Ee86f) |
 | Morpho oracle | see `broadcast/DeployAll.s.sol/8453/run-latest.json` | — |
 
 ## V4 wstDIEM/WETH Pool
 
 | Field | Value |
 |-------|-------|
-| PoolId | `0x834007392f8ff5f0f2d5c5465009df1b319ec1f8ac77386f179450f2abb65045` |
 | PoolManager | `0x498581fF718922c3f8e6A244956aF099B2652b2b` |
-| **currency0** | **wstDIEM** `0x3394898b648385FAd4FE847c52B5E4CCe0D63662` (lower address) |
-| **currency1** | **WETH** `0x4200000000000000000000000000000000000006` |
+| **currency0** | **WETH** `0x4200000000000000000000000000000000000006` (lower address) |
+| **currency1** | **wstDIEM** `0x4751BA2b09374C1929FC01734a166e3c8cd75810` |
 | fee | 0.3% (3000) |
 | tickSpacing | 60 |
-| `wethIsCurrency0` | `false` — WETH is currency1 in this deployment |
+| tickLower | 62160 |
+| tickUpper | 92100 |
+| `wethIsCurrency0` | `true` — WETH is currency0 in v4 deployment |
 
-> **Important:** In this deployment, wstDIEM (`0x3394`) < WETH (`0x4200`), so wstDIEM is currency0 and WETH is currency1. This is the **opposite of the previous deployment** (v2 vault `0xa607...`). The Router `wethIsCurrency0` immutable is `false` and swap direction in `unlockCallback` is adjusted accordingly.
+> **Important:** In v4, WETH (`0x4200...`) < wstDIEM (`0x4751...`), so WETH is currency0 and wstDIEM is currency1. This is the **opposite of the v3 deployment** (vault `0x3394...` where wstDIEM was currency0). The Router `wethIsCurrency0` immutable is `true`.
+
+## DEPRECATED v3 Contracts — do not use
+
+| Contract | Address |
+|----------|---------|
+| `InferenceVault` v3 | `0x3394898b648385FAd4FE847c52B5E4CCe0D63662` |
+| `FeeRouter` v3 | `0x33B218bd86046AAd25c209B1d7Adb7e8A6648387` |
+| `Router` v7 | `0xA92EF6a90058f52556e74504324D28D7EC8d49a2` |
+| `AgentTGERegistry` v3 | `0xcD30D20a8053f9B0abe408CB1c7e6cFDff3c0D83` |
+| `SurplusStakingWrapper` v3 | `0x3bcfc3AFEEe1F3077fD15c9FBE9FDaD13e47a283` |
+| Curve DIEM/wstDIEM v3 | `0x01773049bA5c5cEF28072e5c071a629b4dee555c` |
 
 ## Morpho Markets
 

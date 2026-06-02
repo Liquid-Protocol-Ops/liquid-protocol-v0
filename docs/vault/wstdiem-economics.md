@@ -1,7 +1,7 @@
 # wstDIEM — Fee Structure & Economics
 
-**Last updated:** 2026-06-01  
-**Vault:** `0xa6076Ac24f21A9c526d6d32774d66cBB804Cf649`  
+**Last updated:** 2026-06-02  
+**Vault:** `0x4751BA2b09374C1929FC01734a166e3c8cd75810` (InferenceVault v4)  
 **Chain:** Base mainnet
 
 ---
@@ -153,7 +153,7 @@ Protocol agents (AUTONOMOPOLY, future agents)
   Vault DIEM position is strictly monotonically increasing
 ```
 
-**The vault's role:** Passive accumulator. Receives DIEM from FeeRouter. Stakes it. Never unstakes it (unless enabling user withdrawals). The vault contract address is NOT a Venice provider.
+**The vault's role:** Passive accumulator. Receives DIEM from FeeRouter. Stakes it. Never unstakes it (unless enabling user withdrawals). Venice supports ERC-1271 for contract accounts (confirmed via DiemStakingProxy on Base) — the vault address can be registered as a Venice account directly.
 
 **AUTONOMOPOLY can sell inference on Surplus AI today:**
 - sVVV = 4.5397 → Venice API key already active
@@ -214,16 +214,17 @@ Not implemented. Current vault is yield-accumulation only.
 
 ---
 
-## Deployed Contracts Summary
+## Deployed Contracts Summary (v4, 2026-06-01)
+
+See `docs/vault/mainnet-addresses.md` for the full canonical address list. Key contracts:
 
 | Contract | Address | Role |
 |----------|---------|------|
-| `InferenceVault` (wstDIEM) | `0xa6076Ac24f21A9c526d6d32774d66cBB804Cf649` | Core ERC-4626 vault |
-| `Router` v6 | `0xaa266759d6d546b3710D84E99ba49089812dCcBD` | Deposit paths: WETH, VVV, exitToWETH |
-| `FeeRouter` | `0x67fA697Da772052119b289DDCa987b0A90592243` | Fee income routing to vault |
-| `SurplusStakingWrapper` | `0x4468FD8a503399c096be95D11a24037Cd7168b1b` | Deposit wrapper with referral tracking |
-| `AgentTGERegistry` | `0xf1c0bD66aD078182F5C06AFeC423F30233c5Ac65` | Agent lifecycle and dormancy tracking |
-| Curve DIEM/wstDIEM | `0x60b9bDfFE446A17202b0e56318ED3aE67bb2694E` | StableSwap exit pool |
-| V4 wstDIEM/WETH | PoolId `0x43da55...1f15` | AMM exit pool, `exitToWETH` target |
-| Morpho 38.5% market | MarketId `0x84f275...589` | DIEM borrow market, wstDIEM collateral |
-| Morpho 77% market (legacy) | — | Deprecated; 38.5% is canonical |
+| `InferenceVault` (wstDIEM) | `0x4751BA2b09374C1929FC01734a166e3c8cd75810` | Core ERC-4626 vault |
+| `Router` v8 | `0x6f5FF03a91cb1703B7CB8d85572f990bcB04273D` | Deposit paths: WETH, VVV, exitToWETH |
+| `FeeRouter` | `0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61` | Fee income routing to vault |
+| `SurplusStakingWrapper` | `0xB0f9c45dAacD89F0d90cbE0E65d0dA20fa1ac415` | Deposit wrapper with referral tracking |
+| `AgentTGERegistry` | `0x49be7fE8D661b892AC0461818a5C714574e83998` | Agent lifecycle and dormancy tracking |
+| Curve DIEM/wstDIEM | `0x39A4b4779C71E1A18d500627639682c9583Ee86f` | StableSwap exit pool |
+
+> All v1 and v2 contracts (vault `0xa6076...`, FeeRouter `0x67fA...`, Router v6 `0xaa266...`) are deprecated. Do not use.
