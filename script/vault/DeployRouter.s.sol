@@ -10,10 +10,11 @@ contract DeployRouter is Script {
         vm.startBroadcast(pk);
 
         Router router = new Router(
-            0xa6076Ac24f21A9c526d6d32774d66cBB804Cf649,  // InferenceVault v2 (stakes DIEM in Venice)
+            0x4751BA2b09374C1929FC01734a166e3c8cd75810,  // InferenceVault v4
             0x4200000000000000000000000000000000000006,  // WETH
             0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf,  // VVV
-            0x321b7ff75154472B18EDb199033fF4D116F340Ff   // vvvStaking (sVVV)
+            0x321b7ff75154472B18EDb199033fF4D116F340Ff,  // vvvStaking (sVVV)
+            address(0)                                   // morpho = use Base mainnet default
         );
 
         // Curve pool wiring moved to FeeRouter; Router no longer holds curvePool.
