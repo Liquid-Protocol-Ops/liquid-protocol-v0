@@ -52,10 +52,9 @@ contract SafeSeedCapital is Script {
     address constant SK2_ADDR = 0x6FDDe67e9c545AcdcE17944bf8f9988E1f88aa9E;
     address constant SK1_ADDR = 0x8f60eB404a5CA868f37bc798ec4c54FA0dcCFC9F;
 
-    // Capital amounts — adjust before running if needed.
-    uint256 constant DIEM_AMOUNT = 2.74e18;   // 2.74 DIEM  → vault → wstDIEM
-    uint256 constant WETH_AMOUNT = 1.0e18;    // 1 WETH     → Router → wstDIEM
-                                              // (remaining 1 WETH reserved for V4 LP)
+    // Capital amounts.
+    // Only DIEM is deposited here — WETH stays in Safe for V4 LP (SafeAddV4LP.s.sol).
+    uint256 constant DIEM_AMOUNT = 2.74e18;   // 2.74 DIEM -> vault -> 2.74 wstDIEM (~$2.74)
 
     uint256 sk1;
     uint256 sk2;
@@ -81,36 +80,17 @@ contract SafeSeedCapital is Script {
         );
         console.log("Tx1: DIEM.approve(vault, 2.74 DIEM) done");
 
-        // -- Step 2: Deposit DIEM → vault → Safe receives wstDIEM --
+        // -- Step 2: Deposit DIEM -> vault -> Safe receives wstDIEM --
         _execSafe(
             VAULT,
             abi.encodeWithSignature("deposit(uint256,address)", DIEM_AMOUNT, SAFE)
         );
         console.log("Tx2: vault.deposit(2.74 DIEM, Safe) done");
 
-        // -- Step 3: Approve Router to spend WETH --
-        _execSafe(
-            WETH,
-            abi.encodeWithSignature("approve(address,uint256)", ROUTER, WETH_AMOUNT)
-        );
-        console.log("Tx3: WETH.approve(Router, 1 WETH) done");
-
-        // -- Step 4: Swap WETH → DIEM via V3 → deposit → Safe receives wstDIEM --
-        _execSafe(
-            ROUTER,
-            abi.encodeWithSignature(
-                "depositWETH(uint256,uint256,address)",
-                WETH_AMOUNT,
-                0,       // minWstDIEM (0 = no slippage protection; add a value for production)
-                SAFE
-            )
-        );
-        console.log("Tx4: Router.depositWETH(1 WETH, Safe) done");
-
         console.log("=== SEED CAPITAL COMPLETE ===");
         console.log("Safe nonce after:", ISafe(SAFE).nonce());
-        console.log("Safe should now hold ~1993 wstDIEM (2.74 DIEM + ~1990 from 1 WETH)");
-        console.log("Remaining 1 WETH in Safe for V4 LP via SafeAddV4LP.s.sol");
+        console.log("Safe holds ~2.74 wstDIEM");
+        console.log("Run SafeAddV4LP.s.sol next to pair wstDIEM with ~0.00137 WETH in V4");
 
         vm.stopBroadcast();
     }

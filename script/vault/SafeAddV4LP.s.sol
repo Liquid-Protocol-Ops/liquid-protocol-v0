@@ -149,19 +149,29 @@ contract SafeAddV4LP is Script {
     address constant SK2_ADDR = 0x6FDDe67e9c545AcdcE17944bf8f9988E1f88aa9E;
     address constant SK1_ADDR = 0x8f60eB404a5CA868f37bc798ec4c54FA0dcCFC9F;
 
-    // LP budget from Safe's balance after SafeSeedCapital runs.
-    // 1 WETH + proportional wstDIEM for the chosen tick range.
-    // Liquidity units chosen to consume approximately 1 WETH.
-    // At tick 75981, tickLower=62160, tickUpper=92100 and 1 WETH:
-    //   liquidity ~= 1e18 * sqrtPrice / (sqrtPriceUpper - sqrtPrice)
-    //   A rough value: 3.0e18 covers ~1 WETH + ~1993 wstDIEM in this range.
-    //   Adjust down if Safe's wstDIEM balance is less than expected.
-    uint128 constant LIQUIDITY = 3_000_000_000_000_000_000; // 3e18 units
-
-    // Tokens to transfer to helper contract before the LP call.
-    // Helper returns any unused balance to Safe after the unlock.
-    uint256 constant WETH_BUDGET    = 1.0e18;    // 1 WETH
-    uint256 constant WSTDIEM_BUDGET = 2000e18;   // 2000 wstDIEM (excess returned to Safe)
+    // LP budget — sized to consume exactly the 2.74 wstDIEM from SafeSeedCapital.
+    //
+    // Math (tick range 62160-92100, current tick 75981, ETH ~$1993):
+    //   sqrtPrice      = sqrt(1993)  ~= 44.64
+    //   sqrtPriceLower = sqrt(500)   ~= 22.36  (tick 62160)
+    //   sqrtPriceUpper = sqrt(10000) = 100.00  (tick 92100)
+    //
+    //   L = wstDIEM / (sqrtPrice - sqrtPriceLower)
+    //     = 2.74e18  / (44.64 - 22.36)
+    //     = 2.74e18  / 22.28
+    //     ~= 1.23e17
+    //
+    //   WETH needed = L * (1/sqrtPrice - 1/sqrtPriceUpper)
+    //               = 1.23e17 * (1/44.64 - 1/100)
+    //               = 1.23e17 * (0.02240 - 0.01)
+    //               = 1.23e17 * 0.01240
+    //               ~= 1.525e15  (~0.00153 WETH, ~$3.04 at $1993/ETH)
+    //
+    // The helper receives 2.74 wstDIEM + 0.002 WETH and returns any unused tokens to Safe.
+    // The remaining ~1.998 WETH stays in Safe untouched.
+    uint128 constant LIQUIDITY      = 123_000_000_000_000_000; // 1.23e17 L units
+    uint256 constant WSTDIEM_BUDGET = 2.74e18;   // exact — all from SafeSeedCapital deposit
+    uint256 constant WETH_BUDGET    = 0.002e18;  // slight buffer over 0.00153; excess returned
 
     uint256 sk1;
     uint256 sk2;
@@ -204,8 +214,9 @@ contract SafeAddV4LP is Script {
         console.log("Tx3: addLiquidity executed");
 
         console.log("=== V4 LP COMPLETE ===");
-        console.log("Position: WETH/wstDIEM tick 62160 to 92100 (~$500-$10000 ETH range)");
-        console.log("Any unused WETH or wstDIEM returned to Safe");
+        console.log("Position: WETH/wstDIEM tick 62160-92100 (~$500-$10000 ETH range)");
+        console.log("Consumed: ~2.74 wstDIEM + ~0.00153 WETH (~$3.04 of WETH)");
+        console.log("Remaining ~1.998 WETH returned/stays in Safe");
 
         vm.stopBroadcast();
     }
