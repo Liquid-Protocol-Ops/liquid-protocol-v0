@@ -46,14 +46,13 @@ contract DeployMorphoMarketsV2 is Script {
     address constant ETH_USD_FEED      = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70;
     uint256 constant STALENESS_SECONDS = 3600;
 
-    // wstDIEM vault v3
-    address constant WSTDIEM = 0x3394898b648385FAd4FE847c52B5E4CCe0D63662;
-
     // 62.5% LLTV — conservative for oracle without live DIEM/USD feed
     uint256 constant LLTV = 625e15;
 
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_PK");
+        // WSTDIEM_ADDRESS env var — use the freshly deployed vault address
+        address WSTDIEM = vm.envAddress("WSTDIEM_ADDRESS");
         vm.startBroadcast(pk);
 
         IMorpho morpho = IMorpho(MORPHO);
