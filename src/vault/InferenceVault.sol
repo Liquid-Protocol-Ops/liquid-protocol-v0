@@ -8,14 +8,20 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-// DIEM token has staking built in. stake() moves DIEM from the liquid balanceOf
-// into a staked position tracked by stakedInfos (sDIEM). Unstaking requires
-// initiateUnstake() then unstake() after a cooldown period (currently 24h on mainnet).
+// DIEM token — Venice AI inference credit token.
+// stake(amount)       — stakes from msg.sender into msg.sender's Venice account
+// stakeFor(to, amt)   — stakes from msg.sender into `to`'s Venice account
+//                       (vault deposits go directly into keeper's Venice budget)
+// initiateUnstakeFor  — vault can initiate unstaking of DIEM it staked to keeper
+// unstakeFor          — vault completes unstaking from keeper's position
+// stakedInfos         — returns (stakedAmount, unstakingAmount, cooldownEnd)
 interface IDIEM is IERC20 {
     function stake(uint256 amount) external;
+    function stakeFor(address to, uint256 amount) external;
     function initiateUnstake(uint256 amount) external;
+    function initiateUnstakeFor(address who, uint256 amount) external;
     function unstake() external;
-    // Returns (stakedAmount, unstakingAmount, cooldownEnd)
+    function unstakeFor(address who, uint256 amount) external;
     function stakedInfos(address account)
         external
         view
@@ -47,7 +53,12 @@ contract InferenceVault is ERC4626, Ownable {
     // --- State ---
     address public feeRouter;
     address public treasury;
-    address public keeper;       // trusted EOA for inference operations (harvest, API key funding)
+    // inferenceKeeper: EOA that holds the Venice API key and serves inference.
+    // When set, ALL DIEM deposits are staked into the keeper's Venice account via
+    // stakeFor(keeper, amount) rather than into the vault's own account.
+    // totalAssets() counts BOTH vault's and keeper's sDIEM — they are one pool.
+    // The keeper's Venice API key budget = stakedInfos(keeper) = total user deposits.
+    address public keeper;
     bool public withdrawalsEnabled;
     uint256 public withdrawalEnabledAt;
 
@@ -64,10 +75,19 @@ contract InferenceVault is ERC4626, Ownable {
     }
 
     // --- Asset accounting ---
-    // stake() moves DIEM out of liquid balanceOf into stakedInfos — sum all buckets.
+    // Counts ALL DIEM controlled by the vault: its own sDIEM + keeper's sDIEM.
+    // When inferenceKeeper is set, deposits go to keeper via stakeFor() so the
+    // vault's own stakedInfos may be zero — keeper's is the primary bucket.
+    // Reading both ensures totalAssets() is always accurate regardless of routing.
     function totalAssets() public view override returns (uint256) {
-        (uint256 staked, uint256 unstaking,) = IDIEM(asset()).stakedInfos(address(this));
-        return IERC20(asset()).balanceOf(address(this)) + staked + unstaking;
+        IDIEM diem = IDIEM(asset());
+        (uint256 vStaked, uint256 vUnstaking,) = diem.stakedInfos(address(this));
+        uint256 total = IERC20(asset()).balanceOf(address(this)) + vStaked + vUnstaking;
+        if (keeper != address(0)) {
+            (uint256 kStaked, uint256 kUnstaking,) = diem.stakedInfos(keeper);
+            total += kStaked + kUnstaking;
+        }
+        return total;
     }
 
     function vaultOwnedShares() public view returns (uint256) {
@@ -128,32 +148,55 @@ contract InferenceVault is ERC4626, Ownable {
         _mint(receiver, shares);
         emit Deposit(caller, receiver, assets, shares);
 
-        // Stake all deposited DIEM in Venice — wstDIEM is a liquid wrapper for sDIEM.
-        IDIEM(asset()).stake(assets);
+        // Stake deposited DIEM into Venice. When keeper is set, stake into the keeper's
+        // Venice account so their API key has that DIEM as inference budget.
+        // Both routes count in totalAssets(), so wstDIEM rate is unaffected.
+        if (keeper != address(0)) {
+            IDIEM(asset()).stakeFor(keeper, assets);
+        } else {
+            IDIEM(asset()).stake(assets);
+        }
     }
 
     // --- Non-dilutive yield credit ---
     // FeeRouter calls this to add protocol fee income to the staked pool,
     // increasing the DIEM redeemable per wstDIEM share over time.
+    // Inference revenue credited back to the pool. Routes to keeper when set
+    // so yield also grows the keeper's Venice inference budget.
     function creditDIEM(uint256 amount) external {
         if (msg.sender != feeRouter) revert NotFeeRouter();
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
-        IDIEM(asset()).stake(amount);
+        if (keeper != address(0)) {
+            IDIEM(asset()).stakeFor(keeper, amount);
+        } else {
+            IDIEM(asset()).stake(amount);
+        }
         emit DIEMCredited(amount);
     }
 
     // --- Unstaking (admin-managed liquidity) ---
-    // Primary liquidity path for users is the Curve DIEM/wstDIEM pool.
-    // Direct vault withdrawals require the admin to pre-unstake and then
-    // enable withdrawals after the 14-day governance timelock.
+    // Primary liquidity path: Curve DIEM/wstDIEM pool or V4 wstDIEM/WETH pool.
+    // Direct redemption requires pre-unstaking and a 14-day governance timelock.
+    //
+    // When keeper is set, DIEM is in stakedInfos[keeper]. The vault uses
+    // initiateUnstakeFor/unstakeFor to reclaim it without keeper cooperation.
 
     function initiateUnstake(uint256 amount) external onlyOwner {
-        IDIEM(asset()).initiateUnstake(amount);
+        if (keeper != address(0)) {
+            // Vault staked DIEM to keeper via stakeFor — use initiateUnstakeFor to reclaim
+            IDIEM(asset()).initiateUnstakeFor(keeper, amount);
+        } else {
+            IDIEM(asset()).initiateUnstake(amount);
+        }
     }
 
-    // Call after DIEM cooldown (24h) to move unstaking DIEM back to idle balance.
+    // Call after DIEM cooldown (24h) to move DIEM to idle balance.
     function completeUnstake() external {
-        IDIEM(asset()).unstake();
+        if (keeper != address(0)) {
+            IDIEM(asset()).unstakeFor(keeper, 0); // amount=0 = complete all pending
+        } else {
+            IDIEM(asset()).unstake();
+        }
     }
 
     // --- Withdrawal gate ---
@@ -189,6 +232,35 @@ contract InferenceVault is ERC4626, Ownable {
         if (withdrawalEnabledAt == 0) revert WithdrawalNotInitiated();
         if (block.timestamp < withdrawalEnabledAt) revert TimelockActive();
         withdrawalsEnabled = true;
+    }
+
+    // --- Venice inference credit management ---
+
+    // Mint DIEM directly to the keeper EOA from the vault's sVVV position.
+    // The vault must have sVVV (funded via vault.fundKeeperVVV or direct VVV stake).
+    // This does NOT touch user-deposited DIEM — it creates NEW DIEM from the VVV CDP.
+    // Keeper then calls DIEM.stake(amount) to get sDIEM = Venice inference credits.
+    //
+    // Flow:
+    //   vault.sVVV → mintDiem(keeperEOA, sVVVAmount, 0) → DIEM at keeperEOA
+    //   keeperEOA.DIEM.stake() → keeperEOA.sDIEM → Venice API key inference budget
+    //
+    // Why vault not keeper: Venice needs EOA signing for API key creation.
+    // File Venice feature request for EIP-1271 to make vault the direct Venice account.
+    function mintKeeperDiem(address keeperEOA, address vvvStaking, uint256 minDiemOut)
+        external
+        onlyOwner
+    {
+        require(keeperEOA != address(0), "zero keeper");
+        uint256 sVVVBalance = IERC20(vvvStaking).balanceOf(address(this));
+        require(sVVVBalance > 0, "no sVVV - fund vault with VVV first");
+        // mintDiem(address to, uint256 sVVVAmount, uint256 minOut)
+        // Mints DIEM to keeperEOA backed by vault's sVVV position
+        (bool ok,) = vvvStaking.call(
+            abi.encodeWithSignature("mintDiem(address,uint256,uint256)", keeperEOA, sVVVBalance, minDiemOut)
+        );
+        require(ok, "mintDiem failed");
+        emit KeeperFunded(keeperEOA, sVVVBalance);
     }
 
     // --- Admin ---
