@@ -27,6 +27,17 @@ interface IMorpho {
     function isLltvEnabled(uint256 lltv) external view returns (bool);
 }
 
+interface IPoolManager {
+    struct PoolKey {
+        address currency0;
+        address currency1;
+        uint24  fee;
+        int24   tickSpacing;
+        address hooks;
+    }
+    function initialize(PoolKey calldata key, uint160 sqrtPriceX96) external returns (int24 tick);
+}
+
 contract DeployAll is Script {
     address constant DIEM             = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
     address constant WETH             = 0x4200000000000000000000000000000000000006;
@@ -37,10 +48,18 @@ contract DeployAll is Script {
     address constant ADAPTIVE_CURVE_IRM = 0x46415998764C29aB2a25CbeA6254146D50D22687;
     address constant ETH_USD_FEED     = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70; // Chainlink Base
 
-    // LLTVs — must be enabled on Morpho Blue (Base)
-    uint256 constant LLTV_DIEM  = 385e15;  // 38.5% — conservative, DIEM has no external price feed
-    uint256 constant LLTV_USDC  = 625e15;  // 62.5% — USDC market, DIEM=$1 oracle assumption
-    uint256 constant LLTV_WETH  = 625e15;  // 62.5% — WETH market, Chainlink ETH/USD
+    // LLTVs — all confirmed enabled on Morpho Blue (Base)
+    // DIEM: 86% — borrowing your own underlying (like stETH/ETH). Oracle tracks exact rate.
+    // USDC: 62.5% — single oracle risk (DIEM=$1 assumption). Conservative for launch.
+    // WETH: 62.5% — dual oracle risk (DIEM=$1 + Chainlink). Upgrade to 77% market later.
+    uint256 constant LLTV_DIEM  = 860e15;  // 86%
+    uint256 constant LLTV_USDC  = 625e15;  // 62.5%
+    uint256 constant LLTV_WETH  = 625e15;  // 62.5%
+
+    // V4 pool
+    address constant POOL_MANAGER   = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
+    uint24  constant V4_FEE         = 3000;
+    int24   constant V4_TICK_SPACING = 60;
 
     function run() external {
         address deployer = vm.envAddress("DEPLOYER_ADDRESS");
@@ -105,7 +124,7 @@ contract DeployAll is Script {
             loanToken: DIEM, collateralToken: address(vault),
             oracle: diemOracle, irm: ADAPTIVE_CURVE_IRM, lltv: LLTV_DIEM
         }));
-        console.log("Morpho wstDIEM/DIEM (38.5%)  oracle:", diemOracle);
+        console.log("Morpho wstDIEM/DIEM (86%)    oracle:", diemOracle);
 
         // E2: wstDIEM/USDC (62.5% — borrow stables against inference capacity)
         WstDiemUsdcOracle usdcOracle = new WstDiemUsdcOracle(address(vault));
@@ -122,6 +141,44 @@ contract DeployAll is Script {
             oracle: address(wethOracle), irm: ADAPTIVE_CURVE_IRM, lltv: LLTV_WETH
         }));
         console.log("Morpho wstDIEM/WETH (62.5%)  oracle:", address(wethOracle));
+
+        // Phase F: V4 wstDIEM/WETH pool initialization
+        // Currency ordering: V4 requires currency0 < currency1 by address.
+        // Router.wethIsCurrency0 is set the same way in its constructor.
+        bool wethIsCurrency0 = uint160(WETH) < uint160(address(vault));
+        (address c0, address c1) = wethIsCurrency0
+            ? (WETH, address(vault))
+            : (address(vault), WETH);
+
+        // sqrtPriceX96 = sqrt(price) * 2^96, where price = c1/c0 in raw token units.
+        // Both tokens are 18 dec, so price = whole-token ratio.
+        // If wethIsCurrency0: price = wstDIEM per WETH ≈ ETH/USD price
+        // If !wethIsCurrency0: price = WETH per wstDIEM ≈ 1 / (ETH/USD price)
+        // We use a fixed sqrtPriceX96 close to current price; small error is fine
+        // (pool can be arbitraged to exact price after initialization).
+        // Computed at deploy time: ETH ≈ $1993 → stored in script before broadcast.
+        // If price drifts significantly, re-initialize by creating a new pool.
+        uint160 sqrtPriceX96;
+        if (wethIsCurrency0) {
+            // price = wstDIEM/WETH ≈ 1993 → sqrtPrice ≈ 44.64 → sqrtPriceX96 ≈ 3.537e30
+            sqrtPriceX96 = 3537686061396150883421670866944;
+        } else {
+            // price = WETH/wstDIEM ≈ 1/1993 → sqrtPrice ≈ 0.02240 → sqrtPriceX96 ≈ 1.775e27
+            sqrtPriceX96 = 1774711203519680000000000000000;
+        }
+
+        IPoolManager.PoolKey memory v4Key = IPoolManager.PoolKey({
+            currency0:   c0,
+            currency1:   c1,
+            fee:         V4_FEE,
+            tickSpacing: V4_TICK_SPACING,
+            hooks:       address(0)
+        });
+        int24 v4Tick = IPoolManager(POOL_MANAGER).initialize(v4Key, sqrtPriceX96);
+        router.setV4Pool(POOL_MANAGER);
+        console.log("V4 wstDIEM/WETH pool initialized at tick:", uint256(int256(v4Tick)));
+        console.log("V4 currency0:", c0);
+        console.log("V4 wethIsCurrency0:", wethIsCurrency0);
 
         // Transfer ownership of all mutable contracts to Safe multisig
         vault.transferOwnership(safe);
