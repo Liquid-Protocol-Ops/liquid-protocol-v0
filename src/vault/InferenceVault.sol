@@ -34,6 +34,10 @@ contract InferenceVault is ERC4626, Ownable {
     error AlreadyInitiated();
     error NothingToCancel();
 
+    event DIEMCredited(uint256 amount);
+    event KeeperUpdated(address indexed keeper);
+    event KeeperFunded(address indexed keeperEOA, uint256 vvvAmount);
+
     // --- Constants ---
     uint256 public constant TVL_FEE_THRESHOLD = 5_000_000e18;
     uint256 public constant FEE_LOW_BPS = 10;
@@ -43,6 +47,7 @@ contract InferenceVault is ERC4626, Ownable {
     // --- State ---
     address public feeRouter;
     address public treasury;
+    address public keeper;       // trusted EOA for inference operations (harvest, API key funding)
     bool public withdrawalsEnabled;
     uint256 public withdrawalEnabledAt;
 
@@ -134,6 +139,7 @@ contract InferenceVault is ERC4626, Ownable {
         if (msg.sender != feeRouter) revert NotFeeRouter();
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
         IDIEM(asset()).stake(amount);
+        emit DIEMCredited(amount);
     }
 
     // --- Unstaking (admin-managed liquidity) ---
@@ -192,5 +198,30 @@ contract InferenceVault is ERC4626, Ownable {
 
     function setTreasury(address _treasury) external onlyOwner {
         treasury = _treasury;
+    }
+
+    // Set the keeper EOA — the off-chain operator that serves inference and settles revenue.
+    function setKeeper(address _keeper) external onlyOwner {
+        keeper = _keeper;
+        emit KeeperUpdated(_keeper);
+    }
+
+    // Fund the keeper EOA with a VVV stake so it can self-mint a Venice API key.
+    // The keeper EOA receives sVVV; it then calls Venice's generate_web3_key endpoint,
+    // signs the challenge token with its private key, and receives a Bearer API key.
+    // Requires Safe to send VVV to this call; keeper needs only 1 VVV to mint a key.
+    function fundKeeperVVV(address keeperEOA, address vvv, address vvvStaking, uint256 amount)
+        external
+        onlyOwner
+    {
+        require(keeperEOA != address(0), "zero address");
+        IERC20(vvv).safeTransferFrom(msg.sender, address(this), amount);
+        IERC20(vvv).approve(vvvStaking, amount);
+        // stake(address to, uint256) mints sVVV directly to keeperEOA — no transferFrom needed
+        (bool ok,) = vvvStaking.call(
+            abi.encodeWithSignature("stake(address,uint256)", keeperEOA, amount)
+        );
+        require(ok, "VVV stake failed");
+        emit KeeperFunded(keeperEOA, amount);
     }
 }

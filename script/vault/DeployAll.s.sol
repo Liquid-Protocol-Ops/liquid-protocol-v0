@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AgentTGERegistry} from "../../src/vault/AgentTGERegistry.sol";
 import {FeeRouter} from "../../src/vault/FeeRouter.sol";
 import {InferenceProduct} from "../../src/vault/InferenceProduct.sol";
@@ -45,6 +46,14 @@ contract DeployAll is Script {
         // Phase A: wstDIEM vault
         InferenceVault vault = new InferenceVault(DIEM, treasury, deployer);
         console.log("InferenceVault:", address(vault));
+
+        // Seed deposit — burns 1 DIEM worth of shares to address(1) to prevent the
+        // first-depositor inflation attack. Deployer must hold at least 1e18 DIEM.
+        // The +1 virtual buffer alone is insufficient; a seed makes the attack uneconomical.
+        uint256 SEED = 1e18; // 1 DIEM
+        IERC20(DIEM).approve(address(vault), SEED);
+        vault.deposit(SEED, address(1)); // address(1) = effectively burned
+        console.log("Vault seeded with 1 DIEM (shares to address(1))");
 
         // Phase B: Curve DIEM/wstDIEM pool
         // Use deployPool() (no nested broadcast) — run() would call vm.startBroadcast() again

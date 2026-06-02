@@ -44,6 +44,7 @@ contract WstDiemWethOracle {
     error InvalidPrice();
 
     constructor(address _vault, address _ethUsdFeed, uint256 _stalenessThreshold) {
+        require(_vault != address(0) && _ethUsdFeed != address(0), "zero address");
         vault              = IInferenceVault(_vault);
         ethUsdFeed         = IChainlinkAggregator(_ethUsdFeed);
         stalenessThreshold = _stalenessThreshold;
