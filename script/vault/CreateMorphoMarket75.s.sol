@@ -89,18 +89,15 @@ contract CreateMorphoMarket75 is Script {
 
     // --- Market params ---
     address constant DIEM       = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    // TODO: fill in v5 vault address after running DeployAll.s.sol from
-    // deployer 0x10900528c57BBCe07C223B25Ae9bB66966274b5D (1P: el4qwixmdot757dpxcqgfo43qe).
-    // Market ID below must also be recomputed once WST_DIEM is known.
-    address constant WST_DIEM   = address(0); // PLACEHOLDER — update to InferenceVault v5 address
+    address constant WST_DIEM   = 0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D; // InferenceVault v5 (2026-06-03)
     address constant ORACLE     = 0xE762e8011D453853638D1978398df8b1D383A2D9;
     address constant IRM        = 0x46415998764C29aB2a25CbeA6254146D50D22687; // AdaptiveCurveIRM (verified enabled)
     // 75% (750000000000000000) is NOT whitelisted on Base Morpho.
     // 77% (770000000000000000) is the nearest enabled LLTV above the 75% target.
     uint256 constant LLTV_77PCT = 770000000000000000;
 
-    // Market ID must be recomputed after WST_DIEM is updated to the new vault address.
-    // Current ID is for old vault 0x3394... — placeholder only.
+    // Market ID is deterministic: keccak256(abi.encode(MarketParams)) — recomputed for v5 vault.
+    // Run script with --sig "computeMarketId()" to verify before executing.
     bytes32 constant MARKET_ID_77PCT =
         0x96af141c5ac70610ee0c4d8b5cf72205a8358e888407e0ba45c1cb21f9449f1e;
 

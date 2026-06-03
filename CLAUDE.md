@@ -72,25 +72,29 @@ ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM i
 | Uniswap V3 SwapRouter02 | `0x2626664c2603336E57B271c5C0b26F421741e481` | WETH→DIEM (1% pool) and USDC→WETH→DIEM swaps |
 | Uniswap V4 PoolManager | `0x498581fF718922c3f8e6A244956aF099B2652b2b` | wstDIEM/WETH pool; Router uses `unlock`→`unlockCallback` pattern |
 | Morpho Blue | `0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb` | wstDIEM/DIEM markets (see v4 addresses below) |
-| Curve DIEM/wstDIEM | `0x39A4b4779C71E1A18d500627639682c9583Ee86f` | StableSwap exit pool (v4) |
+| Curve DIEM/wstDIEM | `0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2` | StableSwap exit pool (v5) |
 
-**Active deployed addresses (Base mainnet) — v4, 2026-06-01:**
+**Active deployed addresses (Base mainnet) — v5, 2026-06-03:**
 
 | Contract | Address |
 |----------|---------|
-| InferenceVault (wstDIEM) | `0x4751BA2b09374C1929FC01734a166e3c8cd75810` |
-| FeeRouter | `0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61` |
-| Router v8 | `0x6f5FF03a91cb1703B7CB8d85572f990bcB04273D` |
-| AgentTGERegistry | `0x49be7fE8D661b892AC0461818a5C714574e83998` |
-| SurplusStakingWrapper | `0xB0f9c45dAacD89F0d90cbE0E65d0dA20fa1ac415` |
-| InferenceProduct | `0x9b7d8B23cb223F75F5F1Ead25f12205940960F62` |
-| Curve DIEM/wstDIEM | `0x39A4b4779C71E1A18d500627639682c9583Ee86f` |
-| Morpho wstDIEM/DIEM oracle (86%) | `0xbaEc9cCcBa9884D403dBcEe15455E28781f1fd72` |
-| Morpho wstDIEM/USDC oracle (62.5%) | `0x556B3B1a0de988407EF39e4a775d33280C06EEeb` |
-| Morpho wstDIEM/WETH oracle (62.5%) | `0x25AcE9baFad49f0e7239E4b469edEEDc97d176fd` |
+| InferenceVault (wstDIEM v5) | `0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D` |
+| FeeRouter | `0x3b8d968DCca09E319fac7Df741804Af5644E3a60` |
+| Router | `0x6fF481F4B3B0E2ADa548D454F7011D1ed51532B6` |
+| AgentTGERegistry | `0x09a4227935FF15b261533238F79935CCcA0e7941` |
+| SurplusStakingWrapper | `0x04fAc3e264bD05478Ffc1Caa25394403f8eBc7d7` |
+| InferenceProduct | `0x8620304D28c162E2D2Ae3bF279516DAc368D6879` |
+| Curve DIEM/wstDIEM | `0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2` |
+| Morpho wstDIEM/DIEM oracle (86%) | `0xB1B192fc0190bA15F4EC76BF6032123bc688F76D` |
+| Morpho wstDIEM/USDC oracle (62.5%) | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` |
+| Morpho wstDIEM/WETH oracle (62.5%) | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` |
 | Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` |
 
-Note: The InferenceVault v4 above uses the **old API** (pre-redesign). The new InferenceVault.sol (src/vault/InferenceVault.sol on chore/repo-hardening) requires a fresh deployment via DeployAll.s.sol.
+**Old vault (v4, 2026-06-01) — withdrawals enabled July 1 (MOG-520):**
+
+| Contract | Address |
+|----------|---------|
+| InferenceVault v4 (old API) | `0x4751BA2b09374C1929FC01734a166e3c8cd75810` |
 
 ## Critical Interface Notes
 
