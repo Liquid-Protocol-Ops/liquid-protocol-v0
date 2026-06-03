@@ -250,7 +250,7 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
         internal override
     {
         if (maxTotalStake > 0) {
-            (uint256 staked, uint256 unstaking,) = IDIEM(asset()).stakedInfos(address(this));
+            (uint256 staked,, uint256 unstaking) = IDIEM(asset()).stakedInfos(address(this));
             uint256 gross = IERC20(asset()).balanceOf(address(this)) + staked + unstaking;
             if (gross + assets > maxTotalStake) revert MaxStakeExceeded();
         }

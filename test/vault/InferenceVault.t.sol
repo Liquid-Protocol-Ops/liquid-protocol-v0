@@ -579,6 +579,79 @@ contract InferenceVaultTest is Test {
         vault.flush();
     }
 
+    // ── Batch saturation (MAX_BATCH_SIZE = 50) ───────────────────────────────
+
+    function test_requestRedeem_revertsWhenBatchFull() public {
+        // Fill batch to the 50-user cap using distinct vm.toString(i) names
+        for (uint256 i = 0; i < 50; i++) {
+            address user = makeAddr(string.concat("batchFillUser", vm.toString(i)));
+            diem.mint(user, 10e18);
+            vm.startPrank(user);
+            diem.approve(address(vault), type(uint256).max);
+            vault.deposit(10e18, user);
+            uint256 shares = vault.balanceOf(user);
+            vault.requestRedeem(shares, user);
+            vm.stopPrank();
+        }
+        // 51st request must revert with BatchFull
+        address extra = makeAddr("batchExtra");
+        diem.mint(extra, 10e18);
+        vm.startPrank(extra);
+        diem.approve(address(vault), type(uint256).max);
+        vault.deposit(10e18, extra);
+        uint256 extraShares = vault.balanceOf(extra);
+        vm.expectRevert(abi.encodeWithSignature("BatchFull()"));
+        vault.requestRedeem(extraShares, extra);
+        vm.stopPrank();
+    }
+
+    function test_flush_immediatelyAllowedWhenBatchFull() public {
+        // Fill batch to exactly 50 users — no time warp needed, userCount cap allows immediate flush
+        for (uint256 i = 0; i < 50; i++) {
+            address user = makeAddr(string.concat("flushFillUser", vm.toString(i)));
+            diem.mint(user, 10e18);
+            vm.startPrank(user);
+            diem.approve(address(vault), type(uint256).max);
+            vault.deposit(10e18, user);
+            uint256 shares = vault.balanceOf(user);
+            vault.requestRedeem(shares, user);
+            vm.stopPrank();
+        }
+        // Should succeed without warping — batch is full
+        vault.flush();
+    }
+
+    function test_setMinBatchOpenSecs_revertsAboveMax() public {
+        vm.expectRevert("exceeds 7-day max");
+        vault.setMinBatchOpenSecs(7 days + 1);
+    }
+
+    // ── Access control gaps ──────────────────────────────────────────────────
+
+    function test_deregisteredAdapter_cannotCreditDIEM() public {
+        // Register then immediately deregister
+        vault.setVenueAdapter(venueAdapter, false);
+        vm.prank(venueAdapter);
+        vm.expectRevert(abi.encodeWithSignature("NotVenueAdapter()"));
+        vault.creditDIEM(1e18);
+    }
+
+    function test_unpause_restoresDeposit() public {
+        vault.pause();
+        vm.expectRevert();
+        vm.prank(alice); vault.deposit(1e18, alice);
+        vault.unpause();
+        // After unpause deposit should succeed
+        vm.prank(alice); vault.deposit(1e18, alice);
+        assertGt(vault.balanceOf(alice), 0);
+    }
+
+    function test_creditWstDIEM_revertsZeroRecipient() public {
+        vm.prank(venueAdapter);
+        vm.expectRevert("zero recipient");
+        vault.creditWstDIEM(1e18, address(0));
+    }
+
     // ── Step 3: settle ───────────────────────────────────────────────────────
 
     function test_settle_movesVeniceDIEMToBalance() public {

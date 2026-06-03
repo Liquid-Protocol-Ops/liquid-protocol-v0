@@ -117,10 +117,10 @@ contract DeployAll is Script {
 
         // Phase E: Morpho markets — DIEM, USDC, WETH
         IMorpho morpho = IMorpho(MORPHO_BLUE);
-        require(morpho.isLltvEnabled(LLTV_DIEM), "38.5% LLTV not enabled");
+        require(morpho.isLltvEnabled(LLTV_DIEM), "86% LLTV not enabled");
         require(morpho.isLltvEnabled(LLTV_USDC), "62.5% LLTV not enabled");
 
-        // E1: wstDIEM/DIEM (38.5% — leverage loop market)
+        // E1: wstDIEM/DIEM (86% — leverage loop market)
         DeployMorphoMarket morphoDeployer = new DeployMorphoMarket(address(vault));
         address diemOracle = morphoDeployer.deployOracle();
         morpho.createMarket(MarketParams({
