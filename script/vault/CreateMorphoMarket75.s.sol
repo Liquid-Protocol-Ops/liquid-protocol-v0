@@ -89,9 +89,10 @@ contract CreateMorphoMarket75 is Script {
 
     // --- Market params ---
     address constant DIEM       = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    // TODO: update to new InferenceVault address after DeployAll.s.sol is executed on mainnet.
-    // Current value is the v4 live vault (old API). The market ID must be recomputed after update.
-    address constant WST_DIEM   = 0x4751BA2b09374C1929FC01734a166e3c8cd75810; // InferenceVault v4 (update before deploy)
+    // TODO: fill in v5 vault address after running DeployAll.s.sol from
+    // deployer 0x10900528c57BBCe07C223B25Ae9bB66966274b5D (1P: el4qwixmdot757dpxcqgfo43qe).
+    // Market ID below must also be recomputed once WST_DIEM is known.
+    address constant WST_DIEM   = address(0); // PLACEHOLDER — update to InferenceVault v5 address
     address constant ORACLE     = 0xE762e8011D453853638D1978398df8b1D383A2D9;
     address constant IRM        = 0x46415998764C29aB2a25CbeA6254146D50D22687; // AdaptiveCurveIRM (verified enabled)
     // 75% (750000000000000000) is NOT whitelisted on Base Morpho.

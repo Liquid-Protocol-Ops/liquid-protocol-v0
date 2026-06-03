@@ -21,7 +21,10 @@ Full paths required (not on default PATH):
 | `forge`, `cast`, `anvil` | `~/.foundry/bin/` |
 | `op` (1Password CLI) | `/opt/homebrew/bin/op` |
 
-Secrets: deployer key via `op item get dlvppn2nk3mkz2ewgcu3yhqbj4 --field private_key --reveal`. Etherscan key via `op item get ggwsiftg2sspnxai22vkbj2yea --field credential --reveal`. Both are in 1Password.
+Secrets:
+- **Deployer v5** (wstDIEM InferenceVault v5): `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` — `op item get el4qwixmdot757dpxcqgfo43qe --field "private key" --reveal` (vault: `mog.capital`, item: "wstDIEM Deployer v5")
+- **Deployer v4** (legacy, do not reuse): `op item get dlvppn2nk3mkz2ewgcu3yhqbj4 --field private_key --reveal`
+- **Etherscan key**: `op item get ggwsiftg2sspnxai22vkbj2yea --field credential --reveal`
 
 ## Stack
 
@@ -109,9 +112,9 @@ All vault scripts live in `script/vault/`:
 - `SafeBatch.s.sol` — executes Safe multisig transactions programmatically. Reads `SAFE_SK1` and `SAFE_SK2` (bytes32 private keys) + `EXECUTOR_PK` from env. Signatures sorted by signer address ascending (Safe spec). Safe signers in 1Password: `liq-safe-signer-1` (vault `mog.capital`), `liq-safe-signer-2` (vault `Personal`).
 - `InitPools.s.sol` — initializes V4 pool and seeds Curve pool with available balances.
 
-Typical deploy pattern:
+Typical deploy pattern (v5, using new deployer):
 ```bash
-DEPLOYER_PK=$(op item get <id> --field private_key --reveal | tr -d '[:space:]')
+DEPLOYER_PK=$(op item get el4qwixmdot757dpxcqgfo43qe --field "private key" --reveal | tr -d '[:space:]')
 DEPLOYER_PK="$PK" forge script script/vault/DeployRouter.s.sol \
   --rpc-url https://base-mainnet.g.alchemy.com/v2/<key> \
   --private-key "$PK" --broadcast --verify \
