@@ -16,12 +16,11 @@ wstDIEM is a rebasing-rate token. You hold a fixed share count; each share redee
 
 Charged once at deposit. Tiered by vault TVL:
 
-| TVL | Fee | Recipient |
-|-----|-----|-----------|
-| Below 5M DIEM | **10 bps (0.10%)** | Treasury (Safe), as wstDIEM shares |
-| 5M DIEM and above | **50 bps (0.50%)** | Treasury (Safe), as wstDIEM shares |
+| Fee | Rate | Recipient |
+|-----|------|-----------|
+| Deposit fee | **2.5% (250 bps)**, flat | Treasury (Safe), as wstDIEM shares |
 
-The fee is minted as vault-owned shares to the treasury address. It does not dilute the exchange rate for other holders — it is taken from the depositor's assets before shares are calculated.
+The fee is taken from depositor assets before shares are calculated and minted to the treasury as wstDIEM — the protocol compounds its cut rather than extracting USDC. It does not dilute the exchange rate for existing holders.
 
 No withdrawal fee. No performance fee. No management fee.
 
@@ -117,3 +116,42 @@ rate = totalAssets() / totalSupply()
 ```
 
 `creditDIEM(amount)` increases `amountStaked` (DIEM is immediately staked) without increasing `totalSupply`, so the rate rises proportionally for all existing shares. `creditWstDIEM(amount, recipient)` mints new shares at the current rate — it does not dilute, it is equivalent to a deposit with no fee.
+
+---
+
+## Leverage Loop Economics (Morpho)
+
+`Router.loopDeposit(diemAmount, targetLTV, minWstOut)` turns a single DIEM deposit into a leveraged wstDIEM position in one transaction:
+
+```
+Step 1: Flash borrow X DIEM from Morpho wstDIEM/DIEM market
+Step 2: Deposit (your DIEM + X) into vault → receive wstDIEM
+Step 3: Supply wstDIEM as Morpho collateral on your behalf
+Step 4: Borrow X DIEM to repay flash loan
+```
+
+Resulting position for a 1 DIEM deposit at 4x loop:
+
+| | No loop | 2x loop | 4x loop (77% LTV) |
+|-|---------|---------|-------------------|
+| wstDIEM exposure | 1 DIEM | 2 DIEM | ~4.35 DIEM |
+| Morpho borrow | 0 | 1 DIEM | ~3.35 DIEM |
+| Yield on exposure | 1x rate | 2x rate | 4.35x rate |
+| Liquidation risk | None | Low | Medium (77% LTV) |
+
+The yield earned on the full collateral minus the Morpho borrow rate is the net return. At low borrow utilization the spread is wide; rate risk increases as Morpho fills up.
+
+`Router.unloopDeposit()` exits via flash repay + Curve wstDIEM→DIEM swap, unwinding in one transaction.
+
+---
+
+## Agent Denomination
+
+wstDIEM is the target denomination for autonomous agent pricing:
+
+- **Capacity:** 1 wstDIEM entitles the holder to Venice inference proportional to the vault's total sDIEM stake divided by total wstDIEM supply
+- **Compounding:** An agent holding wstDIEM earns rate appreciation automatically — no claiming, no restaking
+- **Alignment:** Agents that route USDC revenue through adapters increase the exchange rate, making their own wstDIEM holdings more valuable
+- **Collateral:** Agents can borrow DIEM against wstDIEM on Morpho to fund operations without liquidating their staked position
+
+The effective "cost" of Venice inference in DIEM terms falls over time as the vault grows — wstDIEM buys more inference capacity per DIEM invested each period.

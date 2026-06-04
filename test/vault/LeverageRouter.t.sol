@@ -267,7 +267,7 @@ contract LeverageRouterTest is Test {
         uint256 diemIn = 1000e18;
         // totalDiem = 1000 / (1 - 0.70) = 3333.33...
         uint256 totalDiem = diemIn * 1e18 / (1e18 - TARGET_LTV);
-        // expectedWst: vault applies 10 bps deposit fee on fresh vault
+        // expectedWst: vault applies 250 bps deposit fee
         uint256 expectedWst = vault.previewDeposit(totalDiem);
 
         vm.prank(alice);
@@ -305,7 +305,7 @@ contract LeverageRouterTest is Test {
     }
 
     /// @notice Realized LTV = borrow / collateralValue is close to targetLTV.
-    ///         Uses approxEqRel to tolerate the vault deposit fee (10 bps).
+    ///         Uses approxEqRel to tolerate the vault deposit fee (250 bps).
     function test_loopDeposit_targetLTVRespected() public {
         uint256 diemIn = 1000e18;
 

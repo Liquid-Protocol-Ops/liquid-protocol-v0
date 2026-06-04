@@ -100,10 +100,13 @@ contract InferenceVaultTest is Test {
 
     // ── Deposit fee ──────────────────────────────────────────────────────────
 
-    function test_deposit_lowTierFee_10bps() public {
+    function test_deposit_fee_250bps() public {
+        uint256 depositAmount = 1000e18;
         vm.prank(alice);
-        vault.deposit(1000e18, alice);
-        assertGt(vault.balanceOf(treasury), 0);
+        vault.deposit(depositAmount, alice);
+        // treasury receives 2.5% of deposit as wstDIEM shares
+        uint256 expectedFee = depositAmount * 250 / 10_000;
+        assertApproxEqAbs(vault.convertToAssets(vault.balanceOf(treasury)), expectedFee, 1e15);
     }
 
     function test_deposit_feeSharesAndUserSharesSumToTotalSupply() public {
@@ -112,13 +115,56 @@ contract InferenceVaultTest is Test {
         assertEq(vault.balanceOf(alice) + vault.balanceOf(treasury), vault.totalSupply());
     }
 
-    function test_deposit_highTierFee_50bps_aboveThreshold() public {
-        diem.mint(alice, 5_000_001e18);
-        vm.startPrank(alice);
-        diem.approve(address(vault), type(uint256).max);
-        vault.deposit(5_000_001e18, alice);
-        vm.stopPrank();
-        assertEq(vault.currentDepositFeeBps(), 50);
+    function test_deposit_feeBps_isFlat250() public {
+        assertEq(vault.currentDepositFeeBps(), 250);
+    }
+
+    function test_setDepositFeeBps_ownerCanUpdate() public {
+        vault.setDepositFeeBps(100);
+        assertEq(vault.currentDepositFeeBps(), 100);
+    }
+
+    function test_setDepositFeeBps_revertsAboveCap() public {
+        vm.expectRevert("exceeds 10% cap");
+        vault.setDepositFeeBps(1001);
+    }
+
+    function test_setYieldFeeBps_ownerCanUpdate() public {
+        vault.setYieldFeeBps(1000);
+        assertEq(vault.yieldFeeBps(), 1000);
+    }
+
+    function test_setYieldFeeBps_revertsAboveCap() public {
+        vm.expectRevert("exceeds 20% cap");
+        vault.setYieldFeeBps(2001);
+    }
+
+    function test_creditDIEM_yieldFeeMintsToTreasury() public {
+        uint256 creditAmount = 100e18;
+        diem.mint(venueAdapter, creditAmount);
+
+        // Snapshot expected fee shares at pre-credit rate
+        uint256 feeAmount = creditAmount * vault.yieldFeeBps() / 10_000;
+        uint256 expectedFeeShares = vault.convertToShares(feeAmount);
+
+        uint256 treasurySharesBefore = vault.balanceOf(treasury);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(creditAmount);
+
+        uint256 newTreasuryShares = vault.balanceOf(treasury) - treasurySharesBefore;
+        assertApproxEqAbs(newTreasuryShares, expectedFeeShares, 1e12);
+    }
+
+    function test_creditDIEM_zeroYieldFee_noTreasuryMint() public {
+        vault.setYieldFeeBps(0);
+        uint256 creditAmount = 100e18;
+        diem.mint(venueAdapter, creditAmount);
+
+        uint256 supplyBefore = vault.totalSupply();
+        vm.prank(venueAdapter);
+        vault.creditDIEM(creditAmount);
+        // No new shares minted (fee=0), rate rises purely
+        assertEq(vault.totalSupply(), supplyBefore);
     }
 
     // ── maxTotalStake cap ────────────────────────────────────────────────────
@@ -149,13 +195,15 @@ contract InferenceVaultTest is Test {
         assertEq(stakedAfter, stakedBefore + 10e18);
     }
 
-    function test_creditDIEM_noNewShares() public {
+    function test_creditDIEM_mintsOnlyFeeShares() public {
         vm.prank(alice);
         vault.deposit(100e18, alice);
         uint256 supplyBefore = vault.totalSupply();
+        uint256 creditAmount = 10e18;
+        uint256 expectedFeeShares = vault.convertToShares(creditAmount * vault.yieldFeeBps() / 10_000);
         vm.prank(venueAdapter);
-        vault.creditDIEM(10e18);
-        assertEq(vault.totalSupply(), supplyBefore);
+        vault.creditDIEM(creditAmount);
+        assertApproxEqAbs(vault.totalSupply() - supplyBefore, expectedFeeShares, 1e12);
     }
 
     function test_creditDIEM_increasesRate() public {

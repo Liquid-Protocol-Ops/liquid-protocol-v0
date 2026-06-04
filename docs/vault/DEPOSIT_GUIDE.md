@@ -23,7 +23,7 @@ InferenceVault(vault).deposit(amount, receiver);
 InferenceVault(vault).mint(shares, receiver);
 ```
 
-Fee: 10 bps if TVL < 5M DIEM, 50 bps at or above 5M DIEM.
+Fee: 2.5% (250 bps), flat. Taken from depositor assets, minted to treasury as wstDIEM shares.
 
 ### Path B — WETH deposit (via Router)
 
@@ -46,6 +46,19 @@ Router(router).depositVVV(vvvAmount, minWstDiemOut, receiver);
 ```
 
 Stakes VVV for sVVV inside the Router, calls `mintDiem`, deposits. Gas-intensive but uses VVV directly.
+
+### Path E — Leveraged deposit (via Router, Morpho)
+
+Enter a leveraged wstDIEM position in one transaction. Max ~4.35x at 77% LTV.
+
+```solidity
+IERC20(DIEM).approve(router, diemAmount);
+// targetLTV: e.g. 0.7e18 for 70% (safe), 0.77e18 for max
+// minWstOut: slippage guard on total wstDIEM collateral
+Router(router).loopDeposit(diemAmount, targetLTV, minWstOut);
+```
+
+Requires DIEM supply-side liquidity in the Morpho wstDIEM/DIEM market. Check Morpho `availableLiquidity` before calling.
 
 ### Path D — Referral deposit (via SurplusStakingWrapper)
 
