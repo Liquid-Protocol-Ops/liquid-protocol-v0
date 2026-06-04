@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Router} from "../../src/vault/Router.sol";
 import {InferenceVault} from "../../src/vault/InferenceVault.sol";
+import {Router} from "../../src/vault/Router.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Test} from "forge-std/Test.sol";
 
 // Minimal LP helper — adds full-range liquidity to the V4 pool inside an unlock callback.
 contract V4LiquidityHelper {
     IPoolManager immutable pm;
 
-    constructor(address _pm) { pm = IPoolManager(_pm); }
+    constructor(address _pm) {
+        pm = IPoolManager(_pm);
+    }
 
     function addLiquidity(
         PoolKey calldata key,
@@ -46,10 +48,10 @@ contract V4LiquidityHelper {
         (BalanceDelta delta,) = pm.modifyLiquidity(
             key,
             IPoolManager.ModifyLiquidityParams({
-                tickLower:      -887220,
-                tickUpper:       887220,
-                liquidityDelta:  liquidityDelta,
-                salt:            bytes32(0)
+                tickLower: -887_220,
+                tickUpper: 887_220,
+                liquidityDelta: liquidityDelta,
+                salt: bytes32(0)
             }),
             ""
         );
@@ -74,15 +76,16 @@ contract V4LiquidityHelper {
 }
 
 contract RouterV4Test is Test {
-    address constant WETH        = 0x4200000000000000000000000000000000000006;
-    address constant DIEM        = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    address constant VVV         = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
+    address constant VVV = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
     address constant VVV_STAKING = 0x321b7ff75154472B18EDb199033fF4D116F340Ff;
     address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
 
     // Deployed active contracts
-    address constant VAULT_ADDR  = 0xa6076Ac24f21A9c526d6d32774d66cBB804Cf649;
-    bytes32 constant V4_POOL_ID  = 0x43da55144439c36976064cdf90cc24402a07b7be6d37987b7673f1f481bd1f15;
+    address constant VAULT_ADDR = 0xa6076Ac24f21A9c526d6d32774d66cBB804Cf649;
+    bytes32 constant V4_POOL_ID =
+        0x43da55144439c36976064cdf90cc24402a07b7be6d37987b7673f1f481bd1f15;
 
     Router router;
     InferenceVault vault;
@@ -104,8 +107,8 @@ contract RouterV4Test is Test {
 
         // Fund alice
         deal(WETH, alice, 10e18);
-        deal(DIEM, alice, 1_000e18);
-        deal(VVV,  alice, 100e18);
+        deal(DIEM, alice, 1000e18);
+        deal(VVV, alice, 100e18);
 
         vm.startPrank(alice);
         IERC20(WETH).approve(address(router), type(uint256).max);
@@ -127,11 +130,11 @@ contract RouterV4Test is Test {
         vm.stopPrank();
 
         PoolKey memory key = PoolKey({
-            currency0:   Currency.wrap(WETH),
-            currency1:   Currency.wrap(VAULT_ADDR),
-            fee:         3000,
+            currency0: Currency.wrap(WETH),
+            currency1: Currency.wrap(VAULT_ADDR),
+            fee: 3000,
             tickSpacing: 60,
-            hooks:       IHooks(address(0))
+            hooks: IHooks(address(0))
         });
 
         vm.prank(alice);

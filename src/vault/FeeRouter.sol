@@ -16,6 +16,7 @@ interface ISwapRouterV3 {
         uint256 amountOutMinimum;
         uint160 sqrtPriceLimitX96;
     }
+
     struct ExactInputParams {
         bytes path;
         address recipient;
@@ -33,7 +34,9 @@ interface IVVVStaking {
 }
 
 interface ICurvePool {
-    function add_liquidity(uint256[] calldata amounts, uint256 min_mint_amount) external returns (uint256);
+    function add_liquidity(uint256[] calldata amounts, uint256 min_mint_amount)
+        external
+        returns (uint256);
 }
 
 contract FeeRouter is Ownable {
@@ -43,13 +46,17 @@ contract FeeRouter is Ownable {
     // CREDIT_VAULT: convert to DIEM → vault.creditDIEM() (increases wstDIEM rate)
     // CURVE_VOL:    convert to wstDIEM → add to Curve VOL position
     // HOLD:         accumulate in FeeRouter; manual sweep by owner
-    enum FeeMode { CREDIT_VAULT, CURVE_VOL, HOLD }
+    enum FeeMode {
+        CREDIT_VAULT,
+        CURVE_VOL,
+        HOLD
+    }
 
     // Uniswap V3 SwapRouter02 on Base
-    address constant V3_ROUTER   = 0x2626664c2603336E57B271c5C0b26F421741e481;
-    address constant USDC        = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    uint24  constant DIEM_FEE    = 10_000; // WETH/DIEM V3 1%
-    uint24  constant USDC_WETH_FEE = 500; // USDC/WETH V3 0.05%
+    address constant V3_ROUTER = 0x2626664c2603336E57B271c5C0b26F421741e481;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    uint24 constant DIEM_FEE = 10_000; // WETH/DIEM V3 1%
+    uint24 constant USDC_WETH_FEE = 500; // USDC/WETH V3 0.05%
 
     IInferenceVault public immutable vault;
     address public immutable weth;
@@ -59,9 +66,9 @@ contract FeeRouter is Ownable {
     address public curvePool;
 
     // Routing modes (configurable by owner/governance)
-    FeeMode public wethMode    = FeeMode.CREDIT_VAULT;
-    FeeMode public usdcMode    = FeeMode.CREDIT_VAULT;
-    FeeMode public vvvMode     = FeeMode.CREDIT_VAULT;
+    FeeMode public wethMode = FeeMode.CREDIT_VAULT;
+    FeeMode public usdcMode = FeeMode.CREDIT_VAULT;
+    FeeMode public vvvMode = FeeMode.CREDIT_VAULT;
     FeeMode public wstDiemMode = FeeMode.CURVE_VOL;
 
     uint256 public vvvBatchThreshold = 100e18;
@@ -86,11 +93,11 @@ contract FeeRouter is Ownable {
     // account for the marketplace's cut. receiveFromChannel() accepts net USDC
     // (after the marketplace fee has already been deducted off-chain by the keeper).
     struct Channel {
-        string  name;            // human label: "SurplusIntelligence", "AntSeed", …
-        address payoutWallet;    // keeper EOA x402 settles to; keeper calls receiveFromChannel
-        uint256 platformFeeBps;  // marketplace's fee rate (informational — deducted off-chain)
-        bool    active;
-        uint256 totalRevenue;    // lifetime net USDC routed to vault from this channel
+        string name; // human label: "SurplusIntelligence", "AntSeed", …
+        address payoutWallet; // keeper EOA x402 settles to; keeper calls receiveFromChannel
+        uint256 platformFeeBps; // marketplace's fee rate (informational — deducted off-chain)
+        bool active;
+        uint256 totalRevenue; // lifetime net USDC routed to vault from this channel
     }
 
     mapping(uint256 => Channel) public channels;
@@ -105,7 +112,9 @@ contract FeeRouter is Ownable {
     event FeeModeChanged(string token, FeeMode mode);
     event GovernanceInitialized(address governance);
     event KeeperUpdated(address indexed keeper);
-    event ChannelAdded(uint256 indexed channelId, string name, address payoutWallet, uint256 platformFeeBps);
+    event ChannelAdded(
+        uint256 indexed channelId, string name, address payoutWallet, uint256 platformFeeBps
+    );
     event ChannelUpdated(uint256 indexed channelId);
     event ChannelRevenue(uint256 indexed channelId, string name, uint256 amount);
 
@@ -120,13 +129,13 @@ contract FeeRouter is Ownable {
         address _vvv,
         address _vvvStaking,
         address _curvePool,
-        address /*_v4Pool*/   // reserved for ABI compat; unused
+        address /*_v4Pool*/ // reserved for ABI compat; unused
     ) Ownable(msg.sender) {
-        vault      = IInferenceVault(_vault);
-        weth       = _weth;
-        vvv        = _vvv;
+        vault = IInferenceVault(_vault);
+        weth = _weth;
+        vvv = _vvv;
         vvvStaking = _vvvStaking;
-        curvePool  = _curvePool;
+        curvePool = _curvePool;
     }
 
     // ── Receive paths ─────────────────────────────────────────────────────
@@ -165,7 +174,7 @@ contract FeeRouter is Ownable {
         require(c.active, "channel inactive");
         require(msg.sender == c.payoutWallet || msg.sender == owner(), "not channel wallet");
         IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
-        _pendingUSDC   += amount;
+        _pendingUSDC += amount;
         c.totalRevenue += amount;
         emit ChannelRevenue(channelId, c.name, amount);
         emit USDCReceived(amount);
@@ -178,7 +187,7 @@ contract FeeRouter is Ownable {
         Channel storage c = channels[channelId];
         require(c.active, "channel inactive");
         IERC20(USDC).safeTransferFrom(msg.sender, address(this), amount);
-        _pendingUSDC   += amount;
+        _pendingUSDC += amount;
         c.totalRevenue += amount;
         emit ChannelRevenue(channelId, c.name, amount);
         emit USDCReceived(amount);
@@ -189,11 +198,13 @@ contract FeeRouter is Ownable {
 
     // Owner or keeper: routes pending WETH, USDC, and wstDIEM per their configured FeeModes.
     // Zero-slippage swaps — caller is trusted to avoid sandwich attacks by timing calls.
-    function harvest() external onlyOwnerOrKeeper { _harvest(); }
+    function harvest() external onlyOwnerOrKeeper {
+        _harvest();
+    }
 
     function _harvest() internal {
         address diem = vault.asset();
-        uint256 diemBefore  = IERC20(diem).balanceOf(address(this));
+        uint256 diemBefore = IERC20(diem).balanceOf(address(this));
         uint256 totalWstVol = 0; // accumulates ALL wstDIEM routed to Curve VOL this harvest
 
         // --- WETH ---
@@ -201,13 +212,18 @@ contract FeeRouter is Ownable {
         if (pendingW > 0 && wethMode != FeeMode.HOLD) {
             _pendingWETH = 0;
             IERC20(weth).approve(V3_ROUTER, pendingW);
-            uint256 diemOut = ISwapRouterV3(V3_ROUTER).exactInputSingle(
-                ISwapRouterV3.ExactInputSingleParams({
-                    tokenIn: weth, tokenOut: diem, fee: DIEM_FEE,
-                    recipient: address(this), amountIn: pendingW,
-                    amountOutMinimum: 0, sqrtPriceLimitX96: 0
-                })
-            );
+            uint256 diemOut = ISwapRouterV3(V3_ROUTER)
+                .exactInputSingle(
+                    ISwapRouterV3.ExactInputSingleParams({
+                        tokenIn: weth,
+                        tokenOut: diem,
+                        fee: DIEM_FEE,
+                        recipient: address(this),
+                        amountIn: pendingW,
+                        amountOutMinimum: 0,
+                        sqrtPriceLimitX96: 0
+                    })
+                );
             if (wethMode == FeeMode.CURVE_VOL && diemOut > 0) {
                 IERC20(diem).approve(address(vault), diemOut);
                 uint256 wstOut = vault.deposit(diemOut, address(this));
@@ -223,12 +239,15 @@ contract FeeRouter is Ownable {
             _pendingUSDC = 0;
             IERC20(USDC).approve(V3_ROUTER, pendingU);
             bytes memory path = abi.encodePacked(USDC, USDC_WETH_FEE, weth, DIEM_FEE, diem);
-            uint256 diemOut = ISwapRouterV3(V3_ROUTER).exactInput(
-                ISwapRouterV3.ExactInputParams({
-                    path: path, recipient: address(this),
-                    amountIn: pendingU, amountOutMinimum: 0
-                })
-            );
+            uint256 diemOut = ISwapRouterV3(V3_ROUTER)
+                .exactInput(
+                    ISwapRouterV3.ExactInputParams({
+                        path: path,
+                        recipient: address(this),
+                        amountIn: pendingU,
+                        amountOutMinimum: 0
+                    })
+                );
             if (usdcMode == FeeMode.CURVE_VOL && diemOut > 0) {
                 IERC20(diem).approve(address(vault), diemOut);
                 uint256 wstOut = vault.deposit(diemOut, address(this));
@@ -307,10 +326,21 @@ contract FeeRouter is Ownable {
 
     // ── Views ─────────────────────────────────────────────────────────────
 
-    function pendingWETH()    external view returns (uint256) { return _pendingWETH; }
-    function pendingUSDC()    external view returns (uint256) { return _pendingUSDC; }
-    function pendingVVV()     external view returns (uint256) { return _pendingVVV; }
-    function pendingWstDIEM() external view returns (uint256) { return _pendingWstDIEM; }
+    function pendingWETH() external view returns (uint256) {
+        return _pendingWETH;
+    }
+
+    function pendingUSDC() external view returns (uint256) {
+        return _pendingUSDC;
+    }
+
+    function pendingVVV() external view returns (uint256) {
+        return _pendingVVV;
+    }
+
+    function pendingWstDIEM() external view returns (uint256) {
+        return _pendingWstDIEM;
+    }
 
     // ── Owner / Governance config ─────────────────────────────────────────
 
@@ -319,14 +349,33 @@ contract FeeRouter is Ownable {
         emit KeeperUpdated(_keeper);
     }
 
-    function setWethMode(FeeMode mode) external onlyOwner { wethMode = mode; emit FeeModeChanged("WETH", mode); }
-    function setUsdcMode(FeeMode mode) external onlyOwner { usdcMode = mode; emit FeeModeChanged("USDC", mode); }
-    function setVvvMode(FeeMode mode)  external onlyOwner { vvvMode  = mode; emit FeeModeChanged("VVV",  mode); }
-    function setWstDiemMode(FeeMode mode) external onlyOwner { wstDiemMode = mode; emit FeeModeChanged("wstDIEM", mode); }
+    function setWethMode(FeeMode mode) external onlyOwner {
+        wethMode = mode;
+        emit FeeModeChanged("WETH", mode);
+    }
 
-    function setVVVBatchThreshold(uint256 amt) external onlyOwner { vvvBatchThreshold = amt; }
+    function setUsdcMode(FeeMode mode) external onlyOwner {
+        usdcMode = mode;
+        emit FeeModeChanged("USDC", mode);
+    }
 
-    function setCurvePool(address pool) external onlyOwner { curvePool = pool; }
+    function setVvvMode(FeeMode mode) external onlyOwner {
+        vvvMode = mode;
+        emit FeeModeChanged("VVV", mode);
+    }
+
+    function setWstDiemMode(FeeMode mode) external onlyOwner {
+        wstDiemMode = mode;
+        emit FeeModeChanged("wstDIEM", mode);
+    }
+
+    function setVVVBatchThreshold(uint256 amt) external onlyOwner {
+        vvvBatchThreshold = amt;
+    }
+
+    function setCurvePool(address pool) external onlyOwner {
+        curvePool = pool;
+    }
 
     // One-time governance initialization. Transfers ownership to a governance
     // contract (timelock, DAO, etc.). Cannot be undone except by governance itself.
@@ -350,14 +399,14 @@ contract FeeRouter is Ownable {
         onlyOwner
         returns (uint256 channelId)
     {
-        require(platformFeeBps <= 5_000, "fee > 50%");
+        require(platformFeeBps <= 5000, "fee > 50%");
         channelId = nextChannelId++;
         channels[channelId] = Channel({
-            name:           name,
-            payoutWallet:   payoutWallet,
+            name: name,
+            payoutWallet: payoutWallet,
             platformFeeBps: platformFeeBps,
-            active:         true,
-            totalRevenue:   0
+            active: true,
+            totalRevenue: 0
         });
         emit ChannelAdded(channelId, name, payoutWallet, platformFeeBps);
     }
@@ -374,7 +423,7 @@ contract FeeRouter is Ownable {
     }
 
     function setChannelFee(uint256 channelId, uint256 platformFeeBps) external onlyOwner {
-        require(platformFeeBps <= 5_000, "fee > 50%");
+        require(platformFeeBps <= 5000, "fee > 50%");
         channels[channelId].platformFeeBps = platformFeeBps;
         emit ChannelUpdated(channelId);
     }

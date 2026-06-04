@@ -2,10 +2,10 @@
 pragma solidity ^0.8.28;
 
 import {IInferenceVault} from "./interfaces/IInferenceVault.sol";
-import {Ownable}          from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard}  from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20}           from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20}        from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 // ── Morpho Blue interfaces ────────────────────────────────────────────────────
 
@@ -20,10 +20,32 @@ struct MarketParams {
 
 interface IMorpho {
     function flashLoan(address token, uint256 assets, bytes calldata data) external;
-    function supplyCollateral(MarketParams calldata params, uint256 assets, address onBehalf, bytes calldata data) external;
-    function borrow(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, address receiver) external returns (uint256, uint256);
-    function repay(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, bytes calldata data) external returns (uint256, uint256);
-    function withdrawCollateral(MarketParams calldata params, uint256 assets, address onBehalf, address receiver) external;
+    function supplyCollateral(
+        MarketParams calldata params,
+        uint256 assets,
+        address onBehalf,
+        bytes calldata data
+    ) external;
+    function borrow(
+        MarketParams calldata params,
+        uint256 assets,
+        uint256 shares,
+        address onBehalf,
+        address receiver
+    ) external returns (uint256, uint256);
+    function repay(
+        MarketParams calldata params,
+        uint256 assets,
+        uint256 shares,
+        address onBehalf,
+        bytes calldata data
+    ) external returns (uint256, uint256);
+    function withdrawCollateral(
+        MarketParams calldata params,
+        uint256 assets,
+        address onBehalf,
+        address receiver
+    ) external;
 }
 
 interface IMorphoFlashLoanCallback {
@@ -37,12 +59,15 @@ interface ICurveStableSwap {
     function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external returns (uint256);
 }
 
-enum LeverageAction { LOOP, UNLOOP }
+enum LeverageAction {
+    LOOP,
+    UNLOOP
+}
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 
 interface IVVVStaking {
     function stake(address to, uint256 vvvAmount) external;
@@ -61,7 +86,9 @@ interface ISwapRouterV3 {
         uint256 amountOutMinimum;
         uint160 sqrtPriceLimitX96;
     }
-    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
+    function exactInputSingle(ExactInputSingleParams calldata params)
+        external
+        returns (uint256 amountOut);
 }
 
 contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
@@ -74,10 +101,11 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     // WETH/DIEM V3 pool fee: 1%
     uint24 constant DIEM_V3_FEE = 10_000;
     // V4 wstDIEM/WETH pool params
-    uint24 constant WSTDIEM_V4_FEE = 3_000;
+    uint24 constant WSTDIEM_V4_FEE = 3000;
     int24 constant WSTDIEM_V4_TICK_SPACING = 60;
-    uint160 constant MIN_SQRT_PRICE_PLUS_1  = 4295128740;                              // TickMath.MIN_SQRT_PRICE + 1
-    uint160 constant MAX_SQRT_PRICE_MINUS_1 = 1461446703485210103287273052203988822378723970341;
+    uint160 constant MIN_SQRT_PRICE_PLUS_1 = 4_295_128_740; // TickMath.MIN_SQRT_PRICE + 1
+    uint160 constant MAX_SQRT_PRICE_MINUS_1 =
+        1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_341;
 
     IInferenceVault public immutable vault;
     address public immutable weth;
@@ -87,11 +115,11 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     // Computed once at construction — determines swap direction in unlockCallback.
     bool public immutable wethIsCurrency0;
 
-    address public v4Pool;    // V4 PoolManager address (required for exitToWETH)
+    address public v4Pool; // V4 PoolManager address (required for exitToWETH)
 
     // ── Leverage state ────────────────────────────────────────────────────────
-    address public immutable morpho;  // Morpho Blue on Base
-    address public curvePool;         // Curve DIEM/wstDIEM StableSwap
+    address public immutable morpho; // Morpho Blue on Base
+    address public curvePool; // Curve DIEM/wstDIEM StableSwap
     MarketParams public leverageMarketParams;
     // Transient: caller address while a flash loan is in flight; guards onMorphoFlashLoan.
     address private _flashLoanCaller;
@@ -107,8 +135,12 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     error LtvTooHigh();
     error MarketNotSet();
 
-    event LeverageMarketSet(address loanToken, address collateralToken, address oracle, address irm, uint256 lltv);
-    event LoopDeposit(address indexed caller, uint256 diemIn, uint256 flashAmount, uint256 totalWst);
+    event LeverageMarketSet(
+        address loanToken, address collateralToken, address oracle, address irm, uint256 lltv
+    );
+    event LoopDeposit(
+        address indexed caller, uint256 diemIn, uint256 flashAmount, uint256 totalWst
+    );
     event UnloopDeposit(address indexed caller, uint256 wstAmount, uint256 netDiem);
 
     /// @param _morpho Morpho Blue address. Pass address(0) to use the Base mainnet
@@ -117,13 +149,16 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     constructor(address _vault, address _weth, address _vvv, address _vvvStaking, address _morpho)
         Ownable(msg.sender)
     {
-        if (_vault == address(0) || _weth == address(0) || _vvv == address(0) || _vvvStaking == address(0)) {
+        if (
+            _vault == address(0) || _weth == address(0) || _vvv == address(0)
+                || _vvvStaking == address(0)
+        ) {
             revert ZeroAddress();
         }
-        vault       = IInferenceVault(_vault);
-        weth        = _weth;
-        vvv         = _vvv;
-        vvvStaking  = _vvvStaking;
+        vault = IInferenceVault(_vault);
+        weth = _weth;
+        vvv = _vvv;
+        vvvStaking = _vvvStaking;
         wethIsCurrency0 = uint160(_weth) < uint160(_vault);
         morpho = _morpho != address(0) ? _morpho : 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
     }
@@ -139,17 +174,18 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
         IERC20(weth).safeTransferFrom(msg.sender, address(this), wethAmount);
         IERC20(weth).approve(V3_ROUTER, wethAmount);
 
-        uint256 diemOut = ISwapRouterV3(V3_ROUTER).exactInputSingle(
-            ISwapRouterV3.ExactInputSingleParams({
-                tokenIn:           weth,
-                tokenOut:          diem,
-                fee:               DIEM_V3_FEE,
-                recipient:         address(this),
-                amountIn:          wethAmount,
-                amountOutMinimum:  0,
-                sqrtPriceLimitX96: 0
-            })
-        );
+        uint256 diemOut = ISwapRouterV3(V3_ROUTER)
+            .exactInputSingle(
+                ISwapRouterV3.ExactInputSingleParams({
+                    tokenIn: weth,
+                    tokenOut: diem,
+                    fee: DIEM_V3_FEE,
+                    recipient: address(this),
+                    amountIn: wethAmount,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                })
+            );
 
         IERC20(diem).approve(address(vault), diemOut);
         shares = vault.deposit(diemOut, receiver);
@@ -164,9 +200,8 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
         if (v4Pool == address(0)) revert PoolNotSet();
         IERC20(address(vault)).safeTransferFrom(msg.sender, address(this), wstDIEMAmount);
 
-        bytes memory result = IPoolManager(v4Pool).unlock(
-            abi.encode(wstDIEMAmount, minWETH, receiver)
-        );
+        bytes memory result =
+            IPoolManager(v4Pool).unlock(abi.encode(wstDIEMAmount, minWETH, receiver));
         wethOut = abi.decode(result, (uint256));
     }
 
@@ -179,35 +214,33 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
 
         // PoolKey ordering depends on address comparison (V4 requires currency0 < currency1).
         // wethIsCurrency0 is computed once at construction.
-        (address c0, address c1) = wethIsCurrency0
-            ? (weth, address(vault))
-            : (address(vault), weth);
+        (address c0, address c1) = wethIsCurrency0 ? (weth, address(vault)) : (address(vault), weth);
 
         PoolKey memory key = PoolKey({
-            currency0:   Currency.wrap(c0),
-            currency1:   Currency.wrap(c1),
-            fee:         WSTDIEM_V4_FEE,
+            currency0: Currency.wrap(c0),
+            currency1: Currency.wrap(c1),
+            fee: WSTDIEM_V4_FEE,
             tickSpacing: WSTDIEM_V4_TICK_SPACING,
-            hooks:       IHooks(address(0))
+            hooks: IHooks(address(0))
         });
 
         // Selling wstDIEM for WETH:
         // If WETH=c0: zeroForOne=false (c1→c0), WETH returned as delta.amount0()
         // If WETH=c1: zeroForOne=true  (c0→c1), WETH returned as delta.amount1()
         bool zeroForOne = !wethIsCurrency0; // selling wstDIEM, which is whichever currency is NOT WETH
-        BalanceDelta delta = IPoolManager(v4Pool).swap(
-            key,
-            IPoolManager.SwapParams({
-                zeroForOne:        zeroForOne,
-                amountSpecified:   -int256(wstDIEMAmount),
-                sqrtPriceLimitX96: zeroForOne ? MIN_SQRT_PRICE_PLUS_1 : MAX_SQRT_PRICE_MINUS_1
-            }),
-            ""
-        );
+        BalanceDelta delta = IPoolManager(v4Pool)
+            .swap(
+                key,
+                IPoolManager.SwapParams({
+                    zeroForOne: zeroForOne,
+                    amountSpecified: -int256(wstDIEMAmount),
+                    sqrtPriceLimitX96: zeroForOne ? MIN_SQRT_PRICE_PLUS_1 : MAX_SQRT_PRICE_MINUS_1
+                }),
+                ""
+            );
 
-        uint256 wethReceived = wethIsCurrency0
-            ? uint256(int256(delta.amount0()))
-            : uint256(int256(delta.amount1()));
+        uint256 wethReceived =
+            wethIsCurrency0 ? uint256(int256(delta.amount0())) : uint256(int256(delta.amount1()));
         if (wethReceived < minWETH) revert SlippageExceeded();
 
         // Settle: pay wstDIEM to PoolManager
@@ -261,7 +294,9 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     /// @param targetLTV   Desired LTV in WAD (e.g. 0.70e18). Must be < market LLTV − 100 bps.
     /// @param minWstOut   Minimum wstDIEM collateral (slippage guard — vault fee reduces output).
     function loopDeposit(uint256 diemAmount, uint256 targetLTV, uint256 minWstOut)
-        external nonReentrant returns (uint256 totalWst)
+        external
+        nonReentrant
+        returns (uint256 totalWst)
     {
         MarketParams memory params = leverageMarketParams;
         if (params.loanToken == address(0)) revert MarketNotSet();
@@ -271,14 +306,16 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
         address diem = vault.asset();
         IERC20(diem).safeTransferFrom(msg.sender, address(this), diemAmount);
 
-        uint256 totalDiem  = diemAmount * WAD / (WAD - targetLTV);
+        uint256 totalDiem = diemAmount * WAD / (WAD - targetLTV);
         uint256 flashAmount = totalDiem - diemAmount;
 
         _flashLoanCaller = msg.sender;
-        IMorpho(morpho).flashLoan(
-            diem, flashAmount,
-            abi.encode(LeverageAction.LOOP, msg.sender, diemAmount, flashAmount, minWstOut)
-        );
+        IMorpho(morpho)
+            .flashLoan(
+                diem,
+                flashAmount,
+                abi.encode(LeverageAction.LOOP, msg.sender, diemAmount, flashAmount, minWstOut)
+            );
         _flashLoanCaller = address(0);
 
         totalWst = vault.previewDeposit(totalDiem);
@@ -297,7 +334,9 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     /// @param borrowRepay Exact DIEM debt to repay (read from Morpho off-chain).
     /// @param minDiemOut  Minimum net DIEM after repaying flash loan (Curve slippage guard).
     function unloopDeposit(uint256 wstAmount, uint256 borrowRepay, uint256 minDiemOut)
-        external nonReentrant returns (uint256 netDiem)
+        external
+        nonReentrant
+        returns (uint256 netDiem)
     {
         if (curvePool == address(0)) revert PoolNotSet();
         MarketParams memory params = leverageMarketParams;
@@ -305,10 +344,12 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
 
         address diem = vault.asset();
         _flashLoanCaller = msg.sender;
-        IMorpho(morpho).flashLoan(
-            diem, borrowRepay,
-            abi.encode(LeverageAction.UNLOOP, msg.sender, wstAmount, borrowRepay, minDiemOut)
-        );
+        IMorpho(morpho)
+            .flashLoan(
+                diem,
+                borrowRepay,
+                abi.encode(LeverageAction.UNLOOP, msg.sender, wstAmount, borrowRepay, minDiemOut)
+            );
         _flashLoanCaller = address(0);
 
         netDiem = _unloopNetDiem;
@@ -319,14 +360,14 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     /// @notice Morpho flash-loan callback. NOT nonReentrant — OZ counter already
     ///         locked by the calling function; msg.sender==morpho guard blocks others.
     function onMorphoFlashLoan(uint256 assets, bytes calldata data) external override {
-        if (msg.sender != morpho)         revert OnlyMorpho();
+        if (msg.sender != morpho) revert OnlyMorpho();
         if (_flashLoanCaller == address(0)) revert UnexpectedCallback();
 
         (LeverageAction action, address caller, uint256 arg1, uint256 arg2, uint256 arg3) =
             abi.decode(data, (LeverageAction, address, uint256, uint256, uint256));
 
         if (action == LeverageAction.LOOP) {
-            _executeLoop(caller, arg1, arg2, arg3);   // arg1=equity, arg2=flash, arg3=minWst
+            _executeLoop(caller, arg1, arg2, arg3); // arg1=equity, arg2=flash, arg3=minWst
         } else {
             _executeUnloop(caller, arg1, arg2, arg3); // arg1=wstAmt, arg2=repay, arg3=minDiem
         }
@@ -334,7 +375,12 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
         IERC20(vault.asset()).approve(morpho, assets);
     }
 
-    function _executeLoop(address caller, uint256 diemAmount, uint256 flashAmount, uint256 minWstOut) internal {
+    function _executeLoop(
+        address caller,
+        uint256 diemAmount,
+        uint256 flashAmount,
+        uint256 minWstOut
+    ) internal {
         address diem = vault.asset();
         uint256 totalDiem = diemAmount + flashAmount;
 
@@ -348,7 +394,12 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
         IMorpho(morpho).borrow(params, flashAmount, 0, caller, address(this));
     }
 
-    function _executeUnloop(address caller, uint256 wstAmount, uint256 borrowRepay, uint256 minDiemOut) internal {
+    function _executeUnloop(
+        address caller,
+        uint256 wstAmount,
+        uint256 borrowRepay,
+        uint256 minDiemOut
+    ) internal {
         address diem = vault.asset();
         MarketParams memory params = leverageMarketParams;
 
@@ -370,7 +421,9 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
 
     function setLeverageMarket(MarketParams calldata params) external onlyOwner {
         leverageMarketParams = params;
-        emit LeverageMarketSet(params.loanToken, params.collateralToken, params.oracle, params.irm, params.lltv);
+        emit LeverageMarketSet(
+            params.loanToken, params.collateralToken, params.oracle, params.irm, params.lltv
+        );
     }
 
     function setCurvePool(address _pool) external onlyOwner {

@@ -19,7 +19,8 @@ contract WstDIEMHookTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
 
-        vault = new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
+        vault =
+            new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
 
         // Derive the flagged hook address.
         // BEFORE_SWAP_FLAG = 1 << 7  = 0x0080

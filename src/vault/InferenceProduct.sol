@@ -31,10 +31,10 @@ contract InferenceProduct is Ownable {
 
     struct Purchase {
         address buyer;
-        uint256 diemAmount;  // DIEM capacity allocated (18 dec); $1/DIEM/day inference credit
-        uint256 numDays;     // duration of the allocation
-        uint256 priceUSDC;   // USDC paid (6 dec)
-        uint256 expiresAt;   // block.timestamp when capacity returns to pool
+        uint256 diemAmount; // DIEM capacity allocated (18 dec); $1/DIEM/day inference credit
+        uint256 numDays; // duration of the allocation
+        uint256 priceUSDC; // USDC paid (6 dec)
+        uint256 expiresAt; // block.timestamp when capacity returns to pool
         bool released;
     }
 
@@ -45,35 +45,35 @@ contract InferenceProduct is Ownable {
     // maxDailyTokens:      per-purchase daily token budget cap (keeper enforces off-chain)
     // platformFeeBps:      share going to Surplus/AntPool as platform fee (out of 10_000)
     struct MarketplaceConfig {
-        string[]  modelIds;
-        uint256   pricePerMilInUSDC;
-        uint256   pricePerMilOutUSDC;
-        uint256   maxDailyTokens;
-        uint256   platformFeeBps;
+        string[] modelIds;
+        uint256 pricePerMilInUSDC;
+        uint256 pricePerMilOutUSDC;
+        uint256 maxDailyTokens;
+        uint256 platformFeeBps;
     }
 
     // --- State ---
 
-    address public immutable usdc;   // Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    address public immutable usdc; // Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
     address public feeRouter;
 
     // Available inference pool: owner sets this to the DIEM amount the vault has
     // designated for inference sales (subset of totalAssets() that is for sale).
     // Grows as FeeRouter.harvestVVV() / external VVV donations credit the vault.
     uint256 public totalCapacityDIEM;
-    uint256 public allocatedDIEM;    // currently sold / in active allocations
+    uint256 public allocatedDIEM; // currently sold / in active allocations
 
     // Default price: USDC per DIEM per day (6 dec).
     // $0.80/DIEM/day = 80% of Venice's $1/DIEM/day cost, leaving margin.
-    uint256 public pricePerDiemDayUSDC = 0.80e6;
+    uint256 public pricePerDiemDayUSDC = 0.8e6;
 
     MarketplaceConfig private _config;
 
     // Per-model x402 pricing for the keeper's price schedule.
     // Keeper reads these on startup to set per-endpoint x402 prices.
     // Keys are Venice model IDs (e.g. "llama-3.3-70b", "mistral-nemo").
-    mapping(string => uint256) public pricePerMilInByModel;   // USDC per million input tokens (6 dec)
-    mapping(string => uint256) public pricePerMilOutByModel;  // USDC per million output tokens (6 dec)
+    mapping(string => uint256) public pricePerMilInByModel; // USDC per million input tokens (6 dec)
+    mapping(string => uint256) public pricePerMilOutByModel; // USDC per million output tokens (6 dec)
 
     mapping(uint256 => Purchase) public purchases;
     uint256 public nextPurchaseId;
@@ -105,7 +105,7 @@ contract InferenceProduct is Ownable {
     error PriceExceeded(uint256 price, uint256 maxPrice);
 
     constructor(address _usdc, address _feeRouter, address initialOwner) Ownable(initialOwner) {
-        usdc      = _usdc;
+        usdc = _usdc;
         feeRouter = _feeRouter;
     }
 
@@ -138,17 +138,17 @@ contract InferenceProduct is Ownable {
         if (maxPriceUSDC != 0 && price > maxPriceUSDC) revert PriceExceeded(price, maxPriceUSDC);
         uint256 expires = block.timestamp + numDays * 1 days;
 
-        allocatedDIEM    += diemAmount;
+        allocatedDIEM += diemAmount;
         totalRevenueUSDC += price;
-        purchaseId        = nextPurchaseId++;
+        purchaseId = nextPurchaseId++;
 
         purchases[purchaseId] = Purchase({
-            buyer:     msg.sender,
+            buyer: msg.sender,
             diemAmount: diemAmount,
-            numDays:   numDays,
+            numDays: numDays,
             priceUSDC: price,
             expiresAt: expires,
-            released:  false
+            released: false
         });
 
         IERC20(usdc).safeTransferFrom(msg.sender, address(this), price);
@@ -163,7 +163,7 @@ contract InferenceProduct is Ownable {
         Purchase storage p = purchases[purchaseId];
         if (p.released) revert AlreadyReleased();
         if (block.timestamp < p.expiresAt) revert NotExpired();
-        p.released     = true;
+        p.released = true;
         allocatedDIEM -= p.diemAmount;
         emit AllocationReleased(purchaseId);
     }
@@ -172,7 +172,7 @@ contract InferenceProduct is Ownable {
     function forceRelease(uint256 purchaseId) external onlyOwner {
         Purchase storage p = purchases[purchaseId];
         if (p.released) revert AlreadyReleased();
-        p.released     = true;
+        p.released = true;
         allocatedDIEM -= p.diemAmount;
         emit AllocationReleased(purchaseId);
     }
@@ -187,11 +187,11 @@ contract InferenceProduct is Ownable {
         uint256 maxDailyTokens,
         uint256 platformFeeBps
     ) external onlyOwner {
-        _config.modelIds           = modelIds;
-        _config.pricePerMilInUSDC  = pricePerMilInUSDC;
+        _config.modelIds = modelIds;
+        _config.pricePerMilInUSDC = pricePerMilInUSDC;
         _config.pricePerMilOutUSDC = pricePerMilOutUSDC;
-        _config.maxDailyTokens     = maxDailyTokens;
-        _config.platformFeeBps     = platformFeeBps;
+        _config.maxDailyTokens = maxDailyTokens;
+        _config.platformFeeBps = platformFeeBps;
         emit MarketplaceConfigUpdated();
     }
 
@@ -207,12 +207,11 @@ contract InferenceProduct is Ownable {
     // Set per-model x402 token pricing. Keeper reads on startup to configure its price schedule.
     // Call whenever Venice updates model pricing or a new model is added to the catalog.
     // pricePerMilIn/Out: USDC per million tokens (6 dec), e.g. 0.20e6 = $0.20/M tokens.
-    function setModelPricing(
-        string calldata modelId,
-        uint256 pricePerMilIn,
-        uint256 pricePerMilOut
-    ) external onlyOwner {
-        pricePerMilInByModel[modelId]  = pricePerMilIn;
+    function setModelPricing(string calldata modelId, uint256 pricePerMilIn, uint256 pricePerMilOut)
+        external
+        onlyOwner
+    {
+        pricePerMilInByModel[modelId] = pricePerMilIn;
         pricePerMilOutByModel[modelId] = pricePerMilOut;
         emit ModelPricingUpdated(modelId, pricePerMilIn, pricePerMilOut);
     }
@@ -223,9 +222,12 @@ contract InferenceProduct is Ownable {
         uint256[] calldata pricesIn,
         uint256[] calldata pricesOut
     ) external onlyOwner {
-        require(modelIds.length == pricesIn.length && pricesIn.length == pricesOut.length, "length mismatch");
+        require(
+            modelIds.length == pricesIn.length && pricesIn.length == pricesOut.length,
+            "length mismatch"
+        );
         for (uint256 i; i < modelIds.length; ++i) {
-            pricePerMilInByModel[modelIds[i]]  = pricesIn[i];
+            pricePerMilInByModel[modelIds[i]] = pricesIn[i];
             pricePerMilOutByModel[modelIds[i]] = pricesOut[i];
             emit ModelPricingUpdated(modelIds[i], pricesIn[i], pricesOut[i]);
         }

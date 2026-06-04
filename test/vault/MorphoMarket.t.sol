@@ -2,9 +2,9 @@
 pragma solidity ^0.8.28;
 
 import {DeployMorphoMarket, WstDIEMMorphoOracle} from "../../script/vault/DeployMorphoMarket.s.sol";
+import {InferenceVault} from "../../src/vault/InferenceVault.sol";
 import {WstDiemUsdcOracle} from "../../src/vault/oracles/WstDiemUsdcOracle.sol";
 import {WstDiemWethOracle} from "../../src/vault/oracles/WstDiemWethOracle.sol";
-import {InferenceVault} from "../../src/vault/InferenceVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Test, console} from "forge-std/Test.sol";
 
@@ -23,21 +23,22 @@ interface IMorpho {
 }
 
 contract MorphoMarketTest is Test {
-    address constant DIEM             = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    address constant USDC             = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address constant WETH             = 0x4200000000000000000000000000000000000006;
-    address constant MORPHO_BLUE      = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant MORPHO_BLUE = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
     address constant ADAPTIVE_CURVE_IRM = 0x46415998764C29aB2a25CbeA6254146D50D22687;
-    address constant ETH_USD_FEED     = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70;
+    address constant ETH_USD_FEED = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70;
 
-    InferenceVault      vault;
+    InferenceVault vault;
     WstDIEMMorphoOracle diemOracle;
-    WstDiemUsdcOracle   usdcOracle;
-    WstDiemWethOracle   wethOracle;
+    WstDiemUsdcOracle usdcOracle;
+    WstDiemWethOracle wethOracle;
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault      = new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
+        vault =
+            new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
         diemOracle = new WstDIEMMorphoOracle(address(vault));
         usdcOracle = new WstDiemUsdcOracle(address(vault));
         wethOracle = new WstDiemWethOracle(address(vault), ETH_USD_FEED, 3600);
