@@ -14,7 +14,7 @@ interface IMintable {
 ///      the selector resolves correctly.
 contract MockSwapRouter {
     struct ExactInputParams {
-        bytes   path;
+        bytes path;
         address recipient;
         uint256 amountIn;
         uint256 amountOutMinimum;

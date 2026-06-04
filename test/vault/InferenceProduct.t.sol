@@ -8,15 +8,23 @@ import {Test} from "forge-std/Test.sol";
 
 contract MockUSDC is ERC20 {
     constructor() ERC20("USD Coin", "USDC") {}
-    function decimals() public pure override returns (uint8) { return 6; }
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 contract MockFeeRouter {
     MockUSDC public usdc;
     uint256 public received;
 
-    constructor(address _usdc) { usdc = MockUSDC(_usdc); }
+    constructor(address _usdc) {
+        usdc = MockUSDC(_usdc);
+    }
 
     function receiveUSDC(uint256 amount) external {
         usdc.transferFrom(msg.sender, address(this), amount);
@@ -25,20 +33,20 @@ contract MockFeeRouter {
 }
 
 contract InferenceProductTest is Test {
-    MockUSDC         mockUsdc;
-    MockFeeRouter    feeRouter;
+    MockUSDC mockUsdc;
+    MockFeeRouter feeRouter;
     InferenceProduct product;
 
-    address owner  = address(this);
-    address buyer  = makeAddr("buyer");
+    address owner = address(this);
+    address buyer = makeAddr("buyer");
     address buyer2 = makeAddr("buyer2");
 
     uint256 constant CAPACITY = 100e18; // 100 DIEM available
 
     function setUp() public {
-        mockUsdc  = new MockUSDC();
+        mockUsdc = new MockUSDC();
         feeRouter = new MockFeeRouter(address(mockUsdc));
-        product   = new InferenceProduct(address(mockUsdc), address(feeRouter), owner);
+        product = new InferenceProduct(address(mockUsdc), address(feeRouter), owner);
         product.setCapacity(CAPACITY);
     }
 
@@ -77,7 +85,7 @@ contract InferenceProductTest is Test {
 
     function test_buy_priceRoutedToFeeRouter() public {
         // 10 DIEM × 30 days × $0.80 = $240
-        uint256 expectedPrice = 10 * 30 * 0.80e6;
+        uint256 expectedPrice = 10 * 30 * 0.8e6;
         _fundAndBuy(buyer, 10e18, 30);
         assertEq(feeRouter.received(), expectedPrice);
         assertEq(product.totalRevenueUSDC(), expectedPrice);
@@ -95,7 +103,9 @@ contract InferenceProductTest is Test {
         vm.startPrank(buyer);
         mockUsdc.approve(address(product), price);
         vm.expectRevert(
-            abi.encodeWithSelector(InferenceProduct.InsufficientCapacity.selector, CAPACITY + 1e18, CAPACITY)
+            abi.encodeWithSelector(
+                InferenceProduct.InsufficientCapacity.selector, CAPACITY + 1e18, CAPACITY
+            )
         );
         product.buy(CAPACITY + 1e18, 1, 0);
         vm.stopPrank();
@@ -170,18 +180,19 @@ contract InferenceProductTest is Test {
         string[] memory models = new string[](2);
         models[0] = "llama-3.3-70b";
         models[1] = "mistral-nemo";
-        product.setMarketplaceConfig(models, 0.50e6, 1.50e6, 1_000_000, 500);
+        product.setMarketplaceConfig(models, 0.5e6, 1.5e6, 1_000_000, 500);
 
         assertEq(product.getModelIds()[0], "llama-3.3-70b");
-        (uint256 pIn, uint256 pOut, uint256 maxT, uint256 platformFee) = product.getMarketplaceConfig();
-        assertEq(pIn, 0.50e6);
-        assertEq(pOut, 1.50e6);
+        (uint256 pIn, uint256 pOut, uint256 maxT, uint256 platformFee) =
+            product.getMarketplaceConfig();
+        assertEq(pIn, 0.5e6);
+        assertEq(pOut, 1.5e6);
         assertEq(maxT, 1_000_000);
         assertEq(platformFee, 500);
     }
 
     function test_setPricePerDiemDay_affectsQuote() public {
-        product.setPricePerDiemDay(1.00e6); // $1.00/DIEM/day
+        product.setPricePerDiemDay(1.0e6); // $1.00/DIEM/day
         // 10 DIEM × 7 days × $1.00 = $70
         assertEq(product.quotePrice(10e18, 7), 70e6);
     }
@@ -216,7 +227,7 @@ contract InferenceProductTest is Test {
         // 0.5 DIEM × 1 day × $0.80/DIEM/day = $0.40 (4e5 USDC)
         // Old formula: (0.5e18 / 1e18) * 1 * 0.80e6 = 0 * 0.80e6 = 0  ← exploit
         // New formula: (0.5e18 * 1 * 0.80e6) / 1e18 = 4e5              ← correct
-        assertEq(product.quotePrice(0.5e18, 1), 0.40e6);
+        assertEq(product.quotePrice(0.5e18, 1), 0.4e6);
     }
 
     function test_buy_fractionalDIEM_chargesCorrectly() public {
@@ -235,7 +246,7 @@ contract InferenceProductTest is Test {
 
     function test_quotePrice_defaultPricing() public view {
         // 50 DIEM × 14 days × $0.80 = $560
-        assertEq(product.quotePrice(50e18, 14), 50 * 14 * 0.80e6);
+        assertEq(product.quotePrice(50e18, 14), 50 * 14 * 0.8e6);
     }
 
     // --- helpers ---

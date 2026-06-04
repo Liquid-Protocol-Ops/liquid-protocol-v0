@@ -52,20 +52,21 @@ import {Script, console} from "forge-std/Script.sol";
 struct PoolKey {
     address currency0;
     address currency1;
-    uint24  fee;
-    int24   tickSpacing;
+    uint24 fee;
+    int24 tickSpacing;
     address hooks;
 }
 
 interface IPoolManager {
     struct SwapParams {
-        bool    zeroForOne;
-        int256  amountSpecified;    // negative = exact input
-        uint160 sqrtPriceLimitX96;  // price ceiling/floor — use MIN+1 to drain fully
+        bool zeroForOne;
+        int256 amountSpecified; // negative = exact input
+        uint160 sqrtPriceLimitX96; // price ceiling/floor — use MIN+1 to drain fully
     }
     function unlock(bytes calldata data) external returns (bytes memory);
     function swap(PoolKey calldata key, SwapParams calldata params, bytes calldata hookData)
-        external returns (int256 swapDelta);
+        external
+        returns (int256 swapDelta);
     function sync(address currency) external;
     function settle() external payable returns (uint256 paid);
     function take(address currency, address to, uint256 amount) external;
@@ -88,12 +89,12 @@ interface IERC20 {
 contract WstDIEMRecovery {
     // V4 PoolManager on Base mainnet
     address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-    address constant WETH         = 0x4200000000000000000000000000000000000006;
-    address constant WSTDIEM      = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant WSTDIEM = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
 
     // Uniswap V4 absolute minimum sqrtPrice — set as limit to allow full drain.
     // Source: TickMath.MIN_SQRT_PRICE = 4295128739
-    uint160 constant MIN_SQRT_PRICE_PLUS_ONE = 4295128740;
+    uint160 constant MIN_SQRT_PRICE_PLUS_ONE = 4_295_128_740;
 
     address public immutable recipient;
 
@@ -117,23 +118,19 @@ contract WstDIEMRecovery {
         uint256 wethBudget = abi.decode(data, (uint256));
 
         PoolKey memory key = PoolKey({
-            currency0:   WETH,
-            currency1:   WSTDIEM,
-            fee:         3000,
-            tickSpacing: 60,
-            hooks:       address(0)
+            currency0: WETH, currency1: WSTDIEM, fee: 3000, tickSpacing: 60, hooks: address(0)
         });
 
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
-            zeroForOne:       true,
-            amountSpecified:  -int256(wethBudget), // exact WETH input (negative = exact in)
+            zeroForOne: true,
+            amountSpecified: -int256(wethBudget), // exact WETH input (negative = exact in)
             sqrtPriceLimitX96: MIN_SQRT_PRICE_PLUS_ONE // drain to lower tick
         });
 
         // swapDelta packed as int256: upper 128 = amount0, lower 128 = amount1
         int256 swapDelta = IPoolManager(POOL_MANAGER).swap(key, params, "");
-        int128 amount0   = int128(swapDelta >> 128); // WETH delta (negative = we owe)
-        int128 amount1   = int128(swapDelta);        // wstDIEM delta (positive = PM owes us)
+        int128 amount0 = int128(swapDelta >> 128); // WETH delta (negative = we owe)
+        int128 amount1 = int128(swapDelta); // wstDIEM delta (positive = PM owes us)
 
         // Settle WETH owed to PoolManager (sync -> push exact amount -> settle)
         if (amount0 < 0) {
@@ -165,18 +162,18 @@ contract WstDIEMRecovery {
 // ─── Script ───────────────────────────────────────────────────────────────────
 
 contract RecoverLPWstDIEM is Script {
-    address constant SAFE    = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
-    address constant WETH    = 0x4200000000000000000000000000000000000006;
+    address constant SAFE = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant WSTDIEM = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
 
     // Buffer over the ~0.00272 WETH needed to drain the LP.
     uint256 constant DEFAULT_WETH_BUDGET = 0.004e18;
 
     function run() external {
-        uint256 pk          = vm.envUint("EXECUTOR_PK");
-        address recipient   = vm.envOr("RECIPIENT",   SAFE);
-        uint256 wethBudget  = vm.envOr("WETH_BUDGET", DEFAULT_WETH_BUDGET);
-        address executor    = vm.addr(pk);
+        uint256 pk = vm.envUint("EXECUTOR_PK");
+        address recipient = vm.envOr("RECIPIENT", SAFE);
+        uint256 wethBudget = vm.envOr("WETH_BUDGET", DEFAULT_WETH_BUDGET);
+        address executor = vm.addr(pk);
 
         console.log("Executor:    ", executor);
         console.log("Recipient:   ", recipient);

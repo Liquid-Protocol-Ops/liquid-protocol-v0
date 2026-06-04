@@ -7,9 +7,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Test} from "forge-std/Test.sol";
 
 contract RouterTest is Test {
-    address constant DIEM        = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    address constant WETH        = 0x4200000000000000000000000000000000000006;
-    address constant VVV         = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant VVV = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
     address constant VVV_STAKING = 0x321b7ff75154472B18EDb199033fF4D116F340Ff;
     // Uniswap V3 SwapRouter02 on Base
     address constant SWAP_ROUTER = 0x2626664c2603336E57B271c5C0b26F421741e481;
@@ -20,12 +20,13 @@ contract RouterTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault  = new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
+        vault =
+            new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
         router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
 
-        deal(DIEM, alice, 1_000e18);
+        deal(DIEM, alice, 1000e18);
         deal(WETH, alice, 10e18);
-        deal(VVV,  alice, 100e18);
+        deal(VVV, alice, 100e18);
 
         vm.startPrank(alice);
         IERC20(DIEM).approve(address(vault), type(uint256).max);
@@ -103,10 +104,10 @@ contract RouterTest is Test {
     // ── Immutables ────────────────────────────────────────────────────────
 
     function test_router_immutables() public view {
-        assertEq(address(router.vault()),      address(vault));
-        assertEq(router.weth(),                WETH);
-        assertEq(router.vvv(),                 VVV);
-        assertEq(router.vvvStaking(),          VVV_STAKING);
+        assertEq(address(router.vault()), address(vault));
+        assertEq(router.weth(), WETH);
+        assertEq(router.vvv(), VVV);
+        assertEq(router.vvvStaking(), VVV_STAKING);
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────

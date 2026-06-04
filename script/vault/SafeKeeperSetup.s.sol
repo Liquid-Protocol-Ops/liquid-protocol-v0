@@ -24,12 +24,30 @@ import {Script, console} from "forge-std/Script.sol";
 //   forge script script/vault/SafeKeeperSetup.s.sol --rpc-url $BASE_RPC_URL [--broadcast]
 
 interface ISafe {
-    function getTransactionHash(address to, uint256 value, bytes calldata data, uint8 operation,
-        uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken,
-        address refundReceiver, uint256 nonce) external view returns (bytes32);
-    function execTransaction(address to, uint256 value, bytes calldata data, uint8 operation,
-        uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken,
-        address payable refundReceiver, bytes memory signatures) external payable returns (bool);
+    function getTransactionHash(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint8 operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address refundReceiver,
+        uint256 nonce
+    ) external view returns (bytes32);
+    function execTransaction(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint8 operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures
+    ) external payable returns (bool);
     function nonce() external view returns (uint256);
 }
 
@@ -37,7 +55,7 @@ interface ISwapRouterV3 {
     struct ExactInputSingleParams {
         address tokenIn;
         address tokenOut;
-        uint24  fee;
+        uint24 fee;
         address recipient;
         uint256 amountIn;
         uint256 amountOutMinimum;
@@ -47,14 +65,14 @@ interface ISwapRouterV3 {
 }
 
 contract SafeKeeperSetup is Script {
-    address constant SAFE        = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
-    address constant VAULT       = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
-    address constant FEEROUTER   = 0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61;
-    address constant WETH        = 0x4200000000000000000000000000000000000006;
-    address constant VVV         = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
+    address constant SAFE = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
+    address constant VAULT = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
+    address constant FEEROUTER = 0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant VVV = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
     address constant VVV_STAKING = 0x321b7ff75154472B18EDb199033fF4D116F340Ff;
-    address constant V3_ROUTER   = 0x2626664c2603336E57B271c5C0b26F421741e481;
-    address constant ZERO        = address(0);
+    address constant V3_ROUTER = 0x2626664c2603336E57B271c5C0b26F421741e481;
+    address constant ZERO = address(0);
 
     // Keeper EOA that will run the off-chain inference server.
     // Must match the 1P item: zfk52wt5di6kn3j76o6o7kngi4
@@ -91,8 +109,7 @@ contract SafeKeeperSetup is Script {
 
         // Tx 1: WETH.approve(V3Router, 0.01 WETH)
         _execSafe(
-            WETH,
-            abi.encodeWithSignature("approve(address,uint256)", V3_ROUTER, WETH_FOR_VVV)
+            WETH, abi.encodeWithSignature("approve(address,uint256)", V3_ROUTER, WETH_FOR_VVV)
         );
         console.log("Tx1: WETH.approve(V3Router) done");
 
@@ -101,16 +118,19 @@ contract SafeKeeperSetup is Script {
             V3_ROUTER,
             abi.encodeWithSignature(
                 "exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))",
-                WETH, VVV, VVV_POOL_FEE, SAFE, WETH_FOR_VVV, 0, 0
+                WETH,
+                VVV,
+                VVV_POOL_FEE,
+                SAFE,
+                WETH_FOR_VVV,
+                0,
+                0
             )
         );
         console.log("Tx2: WETH->VVV swap done (Safe now holds VVV)");
 
         // Tx 3: VVV.approve(vault, 1 VVV) so vault can pull it for staking
-        _execSafe(
-            VVV,
-            abi.encodeWithSignature("approve(address,uint256)", VAULT, VVV_TO_STAKE)
-        );
+        _execSafe(VVV, abi.encodeWithSignature("approve(address,uint256)", VAULT, VVV_TO_STAKE));
         console.log("Tx3: VVV.approve(vault) done");
 
         // Tx 4: vault.fundKeeperVVV -> stakes 1 VVV to keeper EOA (keeper gets sVVV)
@@ -119,23 +139,20 @@ contract SafeKeeperSetup is Script {
             VAULT,
             abi.encodeWithSignature(
                 "fundKeeperVVV(address,address,address,uint256)",
-                KEEPER, VVV, VVV_STAKING, VVV_TO_STAKE
+                KEEPER,
+                VVV,
+                VVV_STAKING,
+                VVV_TO_STAKE
             )
         );
         console.log("Tx4: vault.fundKeeperVVV done (keeper has sVVV, can mint Venice key)");
 
         // Tx 5: FeeRouter.setKeeper -> keeper can call harvest/settleAndHarvest
-        _execSafe(
-            FEEROUTER,
-            abi.encodeWithSignature("setKeeper(address)", KEEPER)
-        );
+        _execSafe(FEEROUTER, abi.encodeWithSignature("setKeeper(address)", KEEPER));
         console.log("Tx5: FeeRouter.setKeeper done");
 
         // Tx 6: vault.setKeeper -> keeper registered on vault
-        _execSafe(
-            VAULT,
-            abi.encodeWithSignature("setKeeper(address)", KEEPER)
-        );
+        _execSafe(VAULT, abi.encodeWithSignature("setKeeper(address)", KEEPER));
         console.log("Tx6: vault.setKeeper done");
 
         console.log("=== KEEPER SETUP COMPLETE ===");
@@ -148,15 +165,11 @@ contract SafeKeeperSetup is Script {
 
     function _execSafe(address to, bytes memory data) internal {
         uint256 nonce = ISafe(SAFE).nonce();
-        bytes32 txHash = ISafe(SAFE).getTransactionHash(
-            to, 0, data, 0, 0, 0, 0, ZERO, ZERO, nonce
-        );
+        bytes32 txHash = ISafe(SAFE).getTransactionHash(to, 0, data, 0, 0, 0, 0, ZERO, ZERO, nonce);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(sk2, txHash);
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(sk1, txHash);
         bytes memory sigs = abi.encodePacked(r2, s2, v2, r1, s1, v1);
-        bool ok = ISafe(SAFE).execTransaction(
-            to, 0, data, 0, 0, 0, 0, ZERO, payable(ZERO), sigs
-        );
+        bool ok = ISafe(SAFE).execTransaction(to, 0, data, 0, 0, 0, 0, ZERO, payable(ZERO), sigs);
         require(ok, "SafeTx failed");
     }
 }

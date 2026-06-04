@@ -10,9 +10,9 @@ contract PhaseAIntegrationTest is Test {
     address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
 
     InferenceVault vault;
-    address treasury     = makeAddr("treasury");
+    address treasury = makeAddr("treasury");
     address venueAdapter = makeAddr("venueAdapter");
-    address alice        = makeAddr("alice");
+    address alice = makeAddr("alice");
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
 import {WstDiemUsdcOracle} from "../../src/vault/oracles/WstDiemUsdcOracle.sol";
 import {WstDiemWethOracle} from "../../src/vault/oracles/WstDiemWethOracle.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 struct MarketParams {
     address loanToken;
@@ -35,7 +35,7 @@ interface IMorpho {
 //     --rpc-url $BASE_RPC_URL --broadcast --verify
 contract DeployMorphoMarketsV2 is Script {
     // Morpho Blue on Base
-    address constant MORPHO       = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
+    address constant MORPHO = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
     address constant ADAPTIVE_IRM = 0x46415998764C29aB2a25CbeA6254146D50D22687;
 
     // Tokens
@@ -43,7 +43,7 @@ contract DeployMorphoMarketsV2 is Script {
     address constant WETH = 0x4200000000000000000000000000000000000006;
 
     // Chainlink ETH/USD on Base (heartbeat ~20 min, we use 1h threshold)
-    address constant ETH_USD_FEED      = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70;
+    address constant ETH_USD_FEED = 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70;
     uint256 constant STALENESS_SECONDS = 3600;
 
     // 62.5% LLTV — conservative for oracle without live DIEM/USD feed
@@ -66,29 +66,34 @@ contract DeployMorphoMarketsV2 is Script {
         uint256 usdcPrice = usdcOracle.price();
         console.log("USDC oracle price (expect ~1e24):", usdcPrice);
 
-        morpho.createMarket(MarketParams({
-            loanToken:       USDC,
-            collateralToken: WSTDIEM,
-            oracle:          address(usdcOracle),
-            irm:             ADAPTIVE_IRM,
-            lltv:            LLTV
-        }));
+        morpho.createMarket(
+            MarketParams({
+                loanToken: USDC,
+                collateralToken: WSTDIEM,
+                oracle: address(usdcOracle),
+                irm: ADAPTIVE_IRM,
+                lltv: LLTV
+            })
+        );
         console.log("wstDIEM/USDC Morpho market created (LLTV 62.5%)");
 
         // ── wstDIEM / WETH market ─────────────────────────────────────────
-        WstDiemWethOracle wethOracle = new WstDiemWethOracle(WSTDIEM, ETH_USD_FEED, STALENESS_SECONDS);
+        WstDiemWethOracle wethOracle =
+            new WstDiemWethOracle(WSTDIEM, ETH_USD_FEED, STALENESS_SECONDS);
         console.log("WstDiemWethOracle:", address(wethOracle));
 
         uint256 wethPrice = wethOracle.price();
         console.log("WETH oracle price:", wethPrice);
 
-        morpho.createMarket(MarketParams({
-            loanToken:       WETH,
-            collateralToken: WSTDIEM,
-            oracle:          address(wethOracle),
-            irm:             ADAPTIVE_IRM,
-            lltv:            LLTV
-        }));
+        morpho.createMarket(
+            MarketParams({
+                loanToken: WETH,
+                collateralToken: WSTDIEM,
+                oracle: address(wethOracle),
+                irm: ADAPTIVE_IRM,
+                lltv: LLTV
+            })
+        );
         console.log("wstDIEM/WETH Morpho market created (LLTV 62.5%)");
 
         vm.stopBroadcast();
