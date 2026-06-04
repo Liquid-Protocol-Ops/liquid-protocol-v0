@@ -83,18 +83,18 @@ interface ISafe {
 
 contract CreateMorphoMarket75 is Script {
     // --- Protocol addresses (Base mainnet) ---
-    address constant SAFE   = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
+    address constant SAFE = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
     address constant MORPHO = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
-    address constant ZERO   = address(0);
+    address constant ZERO = address(0);
 
     // --- Market params ---
-    address constant DIEM       = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    address constant WST_DIEM   = 0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D; // InferenceVault v5 (2026-06-03)
-    address constant ORACLE     = 0xE762e8011D453853638D1978398df8b1D383A2D9;
-    address constant IRM        = 0x46415998764C29aB2a25CbeA6254146D50D22687; // AdaptiveCurveIRM (verified enabled)
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
+    address constant WST_DIEM = 0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D; // InferenceVault v5 (2026-06-03)
+    address constant ORACLE = 0xE762e8011D453853638D1978398df8b1D383A2D9;
+    address constant IRM = 0x46415998764C29aB2a25CbeA6254146D50D22687; // AdaptiveCurveIRM (verified enabled)
     // 75% (750000000000000000) is NOT whitelisted on Base Morpho.
     // 77% (770000000000000000) is the nearest enabled LLTV above the 75% target.
-    uint256 constant LLTV_77PCT = 770000000000000000;
+    uint256 constant LLTV_77PCT = 770_000_000_000_000_000;
 
     // Market ID is deterministic: keccak256(abi.encode(MarketParams)) — recomputed for v5 vault.
     // Run script with --sig "computeMarketId()" to verify before executing.
@@ -151,35 +151,37 @@ contract CreateMorphoMarket75 is Script {
     // -------------------------------------------------------------------------
     function _execSafe(address to, bytes memory data) internal {
         uint256 safeNonce = ISafe(SAFE).nonce();
-        bytes32 txHash = ISafe(SAFE).getTransactionHash(
-            to,
-            0,             // value
-            data,
-            0,             // operation (Call)
-            0,             // safeTxGas
-            0,             // baseGas
-            0,             // gasPrice
-            ZERO,          // gasToken
-            ZERO,          // refundReceiver
-            safeNonce
-        );
+        bytes32 txHash = ISafe(SAFE)
+            .getTransactionHash(
+                to,
+                0, // value
+                data,
+                0, // operation (Call)
+                0, // safeTxGas
+                0, // baseGas
+                0, // gasPrice
+                ZERO, // gasToken
+                ZERO, // refundReceiver
+                safeNonce
+            );
 
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(sk2, txHash);
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(sk1, txHash);
         bytes memory sigs = abi.encodePacked(r2, s2, v2, r1, s1, v1);
 
-        bool ok = ISafe(SAFE).execTransaction(
-            to,
-            0,             // value
-            data,
-            0,             // operation (Call)
-            0,             // safeTxGas
-            0,             // baseGas
-            0,             // gasPrice
-            ZERO,          // gasToken
-            payable(ZERO), // refundReceiver
-            sigs
-        );
+        bool ok = ISafe(SAFE)
+            .execTransaction(
+                to,
+                0, // value
+                data,
+                0, // operation (Call)
+                0, // safeTxGas
+                0, // baseGas
+                0, // gasPrice
+                ZERO, // gasToken
+                payable(ZERO), // refundReceiver
+                sigs
+            );
         require(ok, "SafeTx failed");
     }
 }

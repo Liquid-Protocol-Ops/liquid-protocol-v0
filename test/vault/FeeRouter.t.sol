@@ -7,11 +7,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Test} from "forge-std/Test.sol";
 
 contract FeeRouterTest is Test {
-    address constant DIEM        = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
-    address constant WETH        = 0x4200000000000000000000000000000000000006;
-    address constant VVV         = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant VVV = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf;
     address constant VVV_STAKING = 0x321b7ff75154472B18EDb199033fF4D116F340Ff;
-    address constant USDC        = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
 
     InferenceVault vault;
     FeeRouter router;
@@ -19,7 +19,8 @@ contract FeeRouterTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault  = new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
+        vault =
+            new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
         router = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0));
         vault.setVenueAdapter(address(router), true);
     }
@@ -75,7 +76,7 @@ contract FeeRouterTest is Test {
 
         uint256 rateBefore = vault.convertToAssets(1e18);
         router.harvest();
-        uint256 rateAfter  = vault.convertToAssets(1e18);
+        uint256 rateAfter = vault.convertToAssets(1e18);
 
         assertGt(rateAfter, rateBefore, "harvest WETH must increase wstDIEM rate");
     }
@@ -91,7 +92,7 @@ contract FeeRouterTest is Test {
 
         uint256 rateBefore = vault.convertToAssets(1e18);
         router.harvest();
-        uint256 rateAfter  = vault.convertToAssets(1e18);
+        uint256 rateAfter = vault.convertToAssets(1e18);
 
         assertGt(rateAfter, rateBefore, "harvest USDC must increase wstDIEM rate");
     }
@@ -131,7 +132,7 @@ contract FeeRouterTest is Test {
 
     function test_addChannel_rejectsExcessiveFee() public {
         vm.expectRevert("fee > 50%");
-        router.addChannel("Greedy", makeAddr("x"), 5_001);
+        router.addChannel("Greedy", makeAddr("x"), 5001);
     }
 
     function test_receiveFromChannel_accumulatesPendingUSDC() public {

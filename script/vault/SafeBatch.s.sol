@@ -5,15 +5,29 @@ import {Script, console} from "forge-std/Script.sol";
 
 interface ISafe {
     function getTransactionHash(
-        address to, uint256 value, bytes calldata data, uint8 operation,
-        uint256 safeTxGas, uint256 baseGas, uint256 gasPrice,
-        address gasToken, address refundReceiver, uint256 nonce
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint8 operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address refundReceiver,
+        uint256 nonce
     ) external view returns (bytes32);
 
     function execTransaction(
-        address to, uint256 value, bytes calldata data, uint8 operation,
-        uint256 safeTxGas, uint256 baseGas, uint256 gasPrice,
-        address gasToken, address payable refundReceiver, bytes memory signatures
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint8 operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures
     ) external payable returns (bool success);
 
     function nonce() external view returns (uint256);
@@ -47,7 +61,7 @@ contract SafeBatch is Script {
             0x601361c2d095f39ca6C5221DDA90e78AB3ba5F05, // Router v4
             0x4D590397D2fe409a4B223906fbd0635FEF30ad7c, // Router v5
             0x8Dc32dA92B89a0968BEc020924491FE94573bef2, // AgentTGERegistry v1
-            0x93577aAA7469Ef62198680Bc006a45e9bd6292B3  // SurplusStakingWrapper v1
+            0x93577aAA7469Ef62198680Bc006a45e9bd6292B3 // SurplusStakingWrapper v1
         ];
 
         bytes memory renounce = abi.encodeWithSignature("renounceOwnership()");
@@ -61,9 +75,7 @@ contract SafeBatch is Script {
 
     function _execSafe(address to, bytes memory data) internal {
         uint256 nonce = ISafe(SAFE).nonce();
-        bytes32 txHash = ISafe(SAFE).getTransactionHash(
-            to, 0, data, 0, 0, 0, 0, ZERO, ZERO, nonce
-        );
+        bytes32 txHash = ISafe(SAFE).getTransactionHash(to, 0, data, 0, 0, 0, 0, ZERO, ZERO, nonce);
 
         // Sign with both keys (signer 2 first — lower address)
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(sk2, txHash);
@@ -71,9 +83,8 @@ contract SafeBatch is Script {
 
         bytes memory sigs = abi.encodePacked(r2, s2, v2, r1, s1, v1);
 
-        bool success = ISafe(SAFE).execTransaction(
-            to, 0, data, 0, 0, 0, 0, ZERO, payable(ZERO), sigs
-        );
+        bool success =
+            ISafe(SAFE).execTransaction(to, 0, data, 0, 0, 0, 0, ZERO, payable(ZERO), sigs);
         require(success, "SafeTx failed");
     }
 }

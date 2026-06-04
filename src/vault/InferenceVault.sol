@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable}         from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable}        from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ERC20}           from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20}          from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC1271}        from "@openzeppelin/contracts/interfaces/IERC1271.sol";
-import {ERC4626}         from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import {SafeERC20}       from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ECDSA}           from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {Math}            from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 // Venice DIEM token — self-staking only. stake(amount) moves DIEM from
 // msg.sender's balanceOf into msg.sender's Venice account. No stakeFor exists.
@@ -23,7 +23,9 @@ interface IDIEM is IERC20 {
     //   slot 1: coolDownEnd    — cooldown expiry TIMESTAMP (not an amount)
     //   slot 2: coolDownAmount — DIEM queued for withdrawal
     function stakedInfos(address account)
-        external view returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
+        external
+        view
+        returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
     function cooldownDuration() external view returns (uint256);
 }
 
@@ -73,33 +75,41 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     error NotInferenceToken();
     error MaxStakeExceeded();
     error BatchFull();
-    error BatchNotOpen();        // flush called with no pending requests
-    error BatchTooNew();         // minBatchOpenSecs not elapsed, batch not full
+    error BatchNotOpen(); // flush called with no pending requests
+    error BatchTooNew(); // minBatchOpenSecs not elapsed, batch not full
     error PriorBatchUnstaking(); // another batch already in Venice unstake
-    error BatchNotFlushed();     // settle called before flush
-    error BatchNotReady();       // Venice cooldown not yet elapsed
+    error BatchNotFlushed(); // settle called before flush
+    error BatchNotReady(); // Venice cooldown not yet elapsed
     error BatchAlreadySettled();
-    error BatchNotSettled();     // claimRedeem called before settle
+    error BatchNotSettled(); // claimRedeem called before settle
     error AlreadyClaimed();
 
     // ─── Events ──────────────────────────────────────────────────────────────
-    event RedeemRequested(uint256 indexed requestId, address indexed receiver, uint32 indexed batchId, uint256 shares, uint256 diem);
+    event RedeemRequested(
+        uint256 indexed requestId,
+        address indexed receiver,
+        uint32 indexed batchId,
+        uint256 shares,
+        uint256 diem
+    );
     event BatchFlushed(uint32 indexed batchId, uint256 diemTotal, uint64 unlockAt);
     event BatchSettled(uint32 indexed batchId, uint256 diemTotal);
     event Claimed(uint256 indexed requestId, address indexed receiver, uint256 diem);
     event DIEMCredited(address indexed adapter, uint256 amount);
-    event WstDIEMCredited(address indexed source, address indexed recipient, uint256 diem, uint256 shares);
+    event WstDIEMCredited(
+        address indexed source, address indexed recipient, uint256 diem, uint256 shares
+    );
     event VenueAdapterSet(address indexed adapter, bool enabled);
     event InferenceTokenSet(address indexed token, bool enabled);
     event VeniceSignerSet(address indexed signer);
 
     // ─── Constants ───────────────────────────────────────────────────────────
-    bytes4  private constant ERC1271_MAGIC       = 0x1626ba7e;
-    uint32  public  constant MAX_BATCH_SIZE      = 50;
-    uint64  public  constant MAX_BATCH_OPEN_SECS = 7 days;
-    uint256 public  constant TVL_FEE_THRESHOLD   = 5_000_000e18;
-    uint256 public  constant FEE_LOW_BPS         = 10;
-    uint256 public  constant FEE_HIGH_BPS        = 50;
+    bytes4 private constant ERC1271_MAGIC = 0x1626ba7e;
+    uint32 public constant MAX_BATCH_SIZE = 50;
+    uint64 public constant MAX_BATCH_OPEN_SECS = 7 days;
+    uint256 public constant TVL_FEE_THRESHOLD = 5_000_000e18;
+    uint256 public constant FEE_LOW_BPS = 10;
+    uint256 public constant FEE_HIGH_BPS = 50;
 
     // ─── Signer / adapter / treasury ─────────────────────────────────────────
     /// @notice Hot key that signs Venice API key challenges. Separate from owner()
@@ -131,11 +141,11 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     uint64 public minBatchOpenSecs = 1 days;
 
     struct UnstakeBatch {
-        uint128 diemTotal;  // sum of DIEM owed; accumulated at requestRedeem time
-        uint64  openedAt;   // timestamp of first request (0 = batch is empty)
-        uint64  unlockAt;   // set at flush() = block.timestamp + cooldownDuration
-        uint32  userCount;  // number of requests in this batch
-        bool    settled;    // true after settle() calls Venice unstake()
+        uint128 diemTotal; // sum of DIEM owed; accumulated at requestRedeem time
+        uint64 openedAt; // timestamp of first request (0 = batch is empty)
+        uint64 unlockAt; // set at flush() = block.timestamp + cooldownDuration
+        uint32 userCount; // number of requests in this batch
+        bool settled; // true after settle() calls Venice unstake()
     }
     mapping(uint32 => UnstakeBatch) public unstakeBatches;
 
@@ -147,10 +157,10 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     uint32 public unstakingBatch;
 
     struct RedeemRequest {
-        address receiver;  // who receives the DIEM; fixed at request time
-        uint128 diem;      // amount locked at requestRedeem; never changes
-        uint32  batchId;
-        bool    claimed;
+        address receiver; // who receives the DIEM; fixed at request time
+        uint128 diem; // amount locked at requestRedeem; never changes
+        uint32 batchId;
+        bool claimed;
     }
     mapping(uint256 => RedeemRequest) public redeemRequests;
     uint256 private _nextRequestId = 1;
@@ -175,7 +185,7 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
         ERC20("Wrapped Staked DIEM", "wstDIEM")
         Ownable(initialOwner)
     {
-        treasury     = _treasury;
+        treasury = _treasury;
         veniceSigner = _veniceSigner;
     }
 
@@ -184,7 +194,10 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     ///      veniceSigner (a keeper/Privy hot key) signs Venice's challenge
     ///      off-chain. Rotating veniceSigner requires only one Safe tx.
     function isValidSignature(bytes32 hash, bytes calldata sig)
-        external view override returns (bytes4)
+        external
+        view
+        override
+        returns (bytes4)
     {
         (address recovered,,) = ECDSA.tryRecover(hash, sig);
         return recovered == veniceSigner ? ERC1271_MAGIC : bytes4(0xffffffff);
@@ -203,16 +216,24 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
         return balanceOf(address(this));
     }
 
-    function _decimalsOffset() internal pure override returns (uint8) { return 0; }
+    function _decimalsOffset() internal pure override returns (uint8) {
+        return 0;
+    }
 
     function _convertToShares(uint256 assets, Math.Rounding rounding)
-        internal view override returns (uint256)
+        internal
+        view
+        override
+        returns (uint256)
     {
         return assets.mulDiv(totalSupply() + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
     }
 
     function _convertToAssets(uint256 shares, Math.Rounding rounding)
-        internal view override returns (uint256)
+        internal
+        view
+        override
+        returns (uint256)
     {
         return shares.mulDiv(totalAssets() + 1, totalSupply() + 10 ** _decimalsOffset(), rounding);
     }
@@ -229,25 +250,34 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
 
     function previewMint(uint256 shares) public view override returns (uint256) {
         uint256 netAssets = _convertToAssets(shares, Math.Rounding.Ceil);
-        uint256 feeBps    = currentDepositFeeBps();
+        uint256 feeBps = currentDepositFeeBps();
         return netAssets.mulDiv(10_000, 10_000 - feeBps, Math.Rounding.Ceil);
     }
 
     // ─── Deposit ─────────────────────────────────────────────────────────────
     function deposit(uint256 assets, address receiver)
-        public override nonReentrant whenNotPaused returns (uint256)
+        public
+        override
+        nonReentrant
+        whenNotPaused
+        returns (uint256)
     {
         return super.deposit(assets, receiver);
     }
 
     function mint(uint256 shares, address receiver)
-        public override nonReentrant whenNotPaused returns (uint256)
+        public
+        override
+        nonReentrant
+        whenNotPaused
+        returns (uint256)
     {
         return super.mint(shares, receiver);
     }
 
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares)
-        internal override
+        internal
+        override
     {
         if (maxTotalStake > 0) {
             (uint256 staked,, uint256 unstaking) = IDIEM(asset()).stakedInfos(address(this));
@@ -267,8 +297,13 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     }
 
     // Instant withdrawal is disabled — all exits use requestRedeem.
-    function maxWithdraw(address) public pure override returns (uint256) { return 0; }
-    function maxRedeem(address)   public pure override returns (uint256) { return 0; }
+    function maxWithdraw(address) public pure override returns (uint256) {
+        return 0;
+    }
+
+    function maxRedeem(address) public pure override returns (uint256) {
+        return 0;
+    }
 
     // ─── Step 1: request redemption ──────────────────────────────────────────
     /// @notice Queue a redemption. Shares are burned immediately; the DIEM amount
@@ -284,12 +319,12 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
         returns (uint256 requestId)
     {
         require(shares >= minRedeemShares, "below minRedeemShares");
-        require(receiver != address(0),   "zero receiver");
+        require(receiver != address(0), "zero receiver");
 
         uint32 batchId = currentBatch;
         UnstakeBatch storage b = unstakeBatches[batchId];
 
-        if (b.unlockAt != 0)              revert BatchFull(); // already flushed
+        if (b.unlockAt != 0) revert BatchFull(); // already flushed
         if (b.userCount >= MAX_BATCH_SIZE) revert BatchFull();
 
         // Snapshot the DIEM value at the current rate and burn shares immediately.
@@ -305,10 +340,7 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
 
         requestId = _nextRequestId++;
         redeemRequests[requestId] = RedeemRequest({
-            receiver: receiver,
-            diem:     uint128(diem),
-            batchId:  batchId,
-            claimed:  false
+            receiver: receiver, diem: uint128(diem), batchId: batchId, claimed: false
         });
         _ownerRequests[receiver].push(requestId);
 
@@ -321,18 +353,19 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     ///         Conditions: batch is full (50 requests) OR minBatchOpenSecs elapsed.
     ///         Only one batch may be in Venice's unstake queue at a time.
     function flush() external nonReentrant whenNotPaused {
-        if (unstakingBatch != 0)       revert PriorBatchUnstaking();
+        if (unstakingBatch != 0) revert PriorBatchUnstaking();
 
         uint32 batchId = currentBatch;
         UnstakeBatch storage b = unstakeBatches[batchId];
-        if (b.diemTotal == 0)          revert BatchNotOpen();
-        if (b.userCount < MAX_BATCH_SIZE && block.timestamp < b.openedAt + minBatchOpenSecs)
+        if (b.diemTotal == 0) revert BatchNotOpen();
+        if (b.userCount < MAX_BATCH_SIZE && block.timestamp < b.openedAt + minBatchOpenSecs) {
             revert BatchTooNew();
+        }
 
         uint64 unlockAt = uint64(block.timestamp + IDIEM(asset()).cooldownDuration());
-        b.unlockAt     = unlockAt;
+        b.unlockAt = unlockAt;
         unstakingBatch = batchId;
-        currentBatch   = batchId + 1;
+        currentBatch = batchId + 1;
 
         IDIEM(asset()).initiateUnstake(b.diemTotal);
         emit BatchFlushed(batchId, b.diemTotal, unlockAt);
@@ -345,12 +378,12 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     ///         can always complete regardless of vault pause state.
     function settle() external nonReentrant {
         uint32 batchId = unstakingBatch;
-        if (batchId == 0)                    revert BatchNotFlushed();
+        if (batchId == 0) revert BatchNotFlushed();
         UnstakeBatch storage b = unstakeBatches[batchId];
-        if (block.timestamp < b.unlockAt)    revert BatchNotReady();
-        if (b.settled)                       revert BatchAlreadySettled();
+        if (block.timestamp < b.unlockAt) revert BatchNotReady();
+        if (b.settled) revert BatchAlreadySettled();
 
-        b.settled      = true;
+        b.settled = true;
         unstakingBatch = 0;
 
         IDIEM(asset()).unstake();
@@ -364,10 +397,10 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     /// @param  requestId The id returned by requestRedeem.
     function claimRedeem(uint256 requestId) external nonReentrant {
         RedeemRequest storage req = redeemRequests[requestId];
-        if (req.claimed)                           revert AlreadyClaimed();
-        if (!unstakeBatches[req.batchId].settled)  revert BatchNotSettled();
+        if (req.claimed) revert AlreadyClaimed();
+        if (!unstakeBatches[req.batchId].settled) revert BatchNotSettled();
 
-        req.claimed           = true;
+        req.claimed = true;
         pendingWithdrawalDiem -= req.diem;
 
         IERC20(asset()).safeTransfer(req.receiver, req.diem);
@@ -375,19 +408,36 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     }
 
     // ─── View helpers ────────────────────────────────────────────────────────
-    function currentBatchInfo() external view returns (
-        uint32 batchId, uint128 diemTotal, uint64 openedAt, uint32 userCount, uint64 flushableAt
-    ) {
+    function currentBatchInfo()
+        external
+        view
+        returns (
+            uint32 batchId,
+            uint128 diemTotal,
+            uint64 openedAt,
+            uint32 userCount,
+            uint64 flushableAt
+        )
+    {
         UnstakeBatch storage b = unstakeBatches[currentBatch];
         uint64 fa = b.openedAt == 0 ? 0 : b.openedAt + minBatchOpenSecs;
         return (currentBatch, b.diemTotal, b.openedAt, b.userCount, fa);
     }
 
-    function requestStatus(uint256 requestId) external view returns (
-        address receiver, uint256 diem, uint32 batchId, uint64 unlockAt, bool settled, bool claimed
-    ) {
+    function requestStatus(uint256 requestId)
+        external
+        view
+        returns (
+            address receiver,
+            uint256 diem,
+            uint32 batchId,
+            uint64 unlockAt,
+            bool settled,
+            bool claimed
+        )
+    {
         RedeemRequest storage req = redeemRequests[requestId];
-        UnstakeBatch  storage b   = unstakeBatches[req.batchId];
+        UnstakeBatch storage b = unstakeBatches[req.batchId];
         return (req.receiver, req.diem, req.batchId, b.unlockAt, b.settled, req.claimed);
     }
 
@@ -487,6 +537,11 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
         minRedeemShares = minShares;
     }
 
-    function pause()   external onlyOwner { _pause(); }
-    function unpause() external onlyOwner { _unpause(); }
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
 }

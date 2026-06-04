@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 import {InferenceVault} from "../../src/vault/InferenceVault.sol";
-import {Router, MarketParams, LeverageAction} from "../../src/vault/Router.sol";
+import {LeverageAction, MarketParams, Router} from "../../src/vault/Router.sol";
 import {MockDIEM} from "./mocks/MockDIEM.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Test, console} from "forge-std/Test.sol";
@@ -42,9 +42,8 @@ contract MockMorpho {
         MockDIEM(token).mint(msg.sender, assets);
 
         // Call callback on the Router — bubble up any revert.
-        (bool ok, bytes memory returnData) = msg.sender.call(
-            abi.encodeWithSignature("onMorphoFlashLoan(uint256,bytes)", assets, data)
-        );
+        (bool ok, bytes memory returnData) = msg.sender
+            .call(abi.encodeWithSignature("onMorphoFlashLoan(uint256,bytes)", assets, data));
         if (!ok) {
             assembly {
                 revert(add(returnData, 32), mload(returnData))
@@ -60,11 +59,7 @@ contract MockMorpho {
     function _marketId(MarketParams calldata params) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                params.loanToken,
-                params.collateralToken,
-                params.oracle,
-                params.irm,
-                params.lltv
+                params.loanToken, params.collateralToken, params.oracle, params.irm, params.lltv
             )
         );
     }
@@ -197,7 +192,7 @@ contract LeverageRouterTest is Test {
     MarketParams market;
 
     // LTV = 70%; must be < market.lltv (75%)
-    uint256 constant TARGET_LTV = 0.70e18;
+    uint256 constant TARGET_LTV = 0.7e18;
     uint256 constant MARKET_LLTV = 0.75e18;
 
     // ── setUp ─────────────────────────────────────────────────────────────────
@@ -205,7 +200,9 @@ contract LeverageRouterTest is Test {
     function setUp() public {
         // 1. Deploy mock tokens and vault.
         diem = new MockDIEM();
-        vault = new InferenceVault(address(diem), makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
+        vault = new InferenceVault(
+            address(diem), makeAddr("treasury"), makeAddr("veniceSigner"), address(this)
+        );
         // Note: the new vault has async withdrawal queue (requestRedeem/flush/settle/claimRedeem).
         // The leverage loop uses Curve for synchronous wstDIEM→DIEM exit in unloopDeposit,
         // so no vault withdrawal mechanics are needed in these tests.
@@ -225,7 +222,11 @@ contract LeverageRouterTest is Test {
         // 4. Deploy Router (now with morpho param).
         //    weth and vvvStaking are irrelevant to leverage tests — use dummy addresses.
         router = new Router(
-            address(vault), makeAddr("weth"), makeAddr("vvv"), makeAddr("vvvStaking"), address(morpho)
+            address(vault),
+            makeAddr("weth"),
+            makeAddr("vvv"),
+            makeAddr("vvvStaking"),
+            address(morpho)
         );
 
         // 5. Configure Router.
@@ -254,7 +255,7 @@ contract LeverageRouterTest is Test {
         //    Alice deposits 5000 DIEM → gets wstDIEM → transfers to Curve pool.
         vm.startPrank(alice);
         diem.approve(address(vault), type(uint256).max);
-        uint256 curveWstSeed = vault.deposit(5_000e18, alice);
+        uint256 curveWstSeed = vault.deposit(5000e18, alice);
         IERC20(address(vault)).transfer(address(curve), curveWstSeed);
         vm.stopPrank();
     }
@@ -263,7 +264,7 @@ contract LeverageRouterTest is Test {
 
     /// @notice loopDeposit produces wstDIEM collateral close to totalDiem * (1-fee).
     function test_loopDeposit_producesCorrectWstAmount() public {
-        uint256 diemIn = 1_000e18;
+        uint256 diemIn = 1000e18;
         // totalDiem = 1000 / (1 - 0.70) = 3333.33...
         uint256 totalDiem = diemIn * 1e18 / (1e18 - TARGET_LTV);
         // expectedWst: vault applies 10 bps deposit fee on fresh vault
@@ -279,7 +280,7 @@ contract LeverageRouterTest is Test {
 
     /// @notice The Morpho collateral ledger reflects the full wstDIEM amount.
     function test_loopDeposit_collateralOnMorpho() public {
-        uint256 diemIn = 1_000e18;
+        uint256 diemIn = 1000e18;
         uint256 totalDiem = diemIn * 1e18 / (1e18 - TARGET_LTV);
         uint256 expectedWst = vault.previewDeposit(totalDiem);
 
@@ -292,7 +293,7 @@ contract LeverageRouterTest is Test {
 
     /// @notice Morpho borrow equals the flash-loan amount (totalDiem - diemIn).
     function test_loopDeposit_borrowEqualsFlashAmount() public {
-        uint256 diemIn = 1_000e18;
+        uint256 diemIn = 1000e18;
         uint256 totalDiem = diemIn * 1e18 / (1e18 - TARGET_LTV);
         uint256 expectedFlash = totalDiem - diemIn;
 
@@ -306,7 +307,7 @@ contract LeverageRouterTest is Test {
     /// @notice Realized LTV = borrow / collateralValue is close to targetLTV.
     ///         Uses approxEqRel to tolerate the vault deposit fee (10 bps).
     function test_loopDeposit_targetLTVRespected() public {
-        uint256 diemIn = 1_000e18;
+        uint256 diemIn = 1000e18;
 
         vm.prank(alice);
         router.loopDeposit(diemIn, TARGET_LTV, 0);
@@ -327,25 +328,25 @@ contract LeverageRouterTest is Test {
     function test_loopDeposit_minWstOut_reverts() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("SlippageExceeded()"));
-        router.loopDeposit(1_000e18, TARGET_LTV, type(uint256).max);
+        router.loopDeposit(1000e18, TARGET_LTV, type(uint256).max);
     }
 
     /// @notice targetLTV >= lltv reverts with LtvTooHigh.
     function test_loopDeposit_ltvTooHigh_reverts() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("LtvTooHigh()"));
-        router.loopDeposit(1_000e18, MARKET_LLTV, 0); // targetLTV == lltv → revert
+        router.loopDeposit(1000e18, MARKET_LLTV, 0); // targetLTV == lltv → revert
     }
 
     /// @notice Unauthorized caller on Morpho reverts.
     function test_loopDeposit_morphoNotAuthorized_reverts() public {
         address bob = makeAddr("bob");
-        diem.mint(bob, 1_000e18);
+        diem.mint(bob, 1000e18);
         vm.startPrank(bob);
         diem.approve(address(router), type(uint256).max);
         // bob did NOT call morpho.setAuthorization(router, true)
         vm.expectRevert();
-        router.loopDeposit(1_000e18, TARGET_LTV, 0);
+        router.loopDeposit(1000e18, TARGET_LTV, 0);
         vm.stopPrank();
     }
 
@@ -370,7 +371,7 @@ contract LeverageRouterTest is Test {
 
     /// @notice unloopDeposit returns net DIEM to caller.
     function test_unloopDeposit_returnsDiem() public {
-        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1_000e18);
+        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1000e18);
 
         uint256 diemBefore = diem.balanceOf(alice);
 
@@ -386,7 +387,7 @@ contract LeverageRouterTest is Test {
 
     /// @notice After unloop, Morpho position is fully closed (zero collateral, zero borrow).
     function test_unloopDeposit_closesPosition() public {
-        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1_000e18);
+        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1000e18);
 
         vm.prank(alice);
         router.unloopDeposit(wstCol, diemBorrow, 0);
@@ -397,7 +398,7 @@ contract LeverageRouterTest is Test {
 
     /// @notice minDiemOut slippage guard reverts when set above net DIEM output.
     function test_unloopDeposit_minDiemOut_reverts() public {
-        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1_000e18);
+        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1000e18);
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("SlippageExceeded()"));
@@ -406,7 +407,7 @@ contract LeverageRouterTest is Test {
 
     /// @notice Partial unwind: withdraw half the collateral and repay half the borrow.
     function test_unloopDeposit_partial() public {
-        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1_000e18);
+        (uint256 wstCol, uint256 diemBorrow) = _openPosition(1000e18);
 
         uint256 halfWst = wstCol / 2;
         uint256 halfBorrow = diemBorrow / 2;
@@ -442,9 +443,13 @@ contract LeverageRouterTest is Test {
     function test_loopDeposit_marketNotSet_reverts() public {
         // Deploy a fresh router with no market set.
         Router freshRouter = new Router(
-            address(vault), makeAddr("weth2"), makeAddr("vvv2"), makeAddr("vvvStaking2"), address(morpho)
+            address(vault),
+            makeAddr("weth2"),
+            makeAddr("vvv2"),
+            makeAddr("vvvStaking2"),
+            address(morpho)
         );
-        diem.mint(alice, 1_000e18);
+        diem.mint(alice, 1000e18);
         vm.prank(alice);
         diem.approve(address(freshRouter), type(uint256).max);
         vm.prank(alice);
@@ -452,6 +457,6 @@ contract LeverageRouterTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("MarketNotSet()"));
-        freshRouter.loopDeposit(1_000e18, TARGET_LTV, 0);
+        freshRouter.loopDeposit(1000e18, TARGET_LTV, 0);
     }
 }

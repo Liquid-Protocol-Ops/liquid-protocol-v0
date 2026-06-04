@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Ownable}    from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC20}     from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC4626}   from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {SafeERC20}  from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IInferenceToken}  from "../interfaces/IInferenceToken.sol";
-import {IInferenceVault}  from "../interfaces/IInferenceVault.sol";
+import {IInferenceToken} from "../interfaces/IInferenceToken.sol";
+import {IInferenceVault} from "../interfaces/IInferenceVault.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @dev Uniswap V3 SwapRouter02 multi-hop interface (exactInput).
 ///      Defined inline so adapters don't depend on the single-hop ISwapRouterV3.sol.
 interface ISwapRouterV3Hop {
     struct ExactInputParams {
-        bytes   path;
+        bytes path;
         address recipient;
         uint256 amountIn;
         uint256 amountOutMinimum;
@@ -23,7 +23,9 @@ interface ISwapRouterV3Hop {
 /// @dev Minimal DIEM interface for reading Venice staked positions.
 interface IDIEM {
     function stakedInfos(address account)
-        external view returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
+        external
+        view
+        returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
 }
 
 /// @title  BaseInferenceAdapter
@@ -88,8 +90,8 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
     constructor(address _vault, address _usdc, address _swapRouter, address initialOwner)
         Ownable(initialOwner)
     {
-        vault      = IInferenceVault(_vault);
-        usdc       = _usdc;
+        vault = IInferenceVault(_vault);
+        usdc = _usdc;
         swapRouter = _swapRouter;
     }
 
@@ -134,18 +136,16 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
         // Multi-hop: USDC → WETH (0.05%) → DIEM (1%)
         bytes memory path = abi.encodePacked(usdc, USDC_WETH_FEE, WETH, DIEM_FEE, diem);
 
-        uint256 diemOut = ISwapRouterV3Hop(swapRouter).exactInput(
-            ISwapRouterV3Hop.ExactInputParams({
-                path:             path,
-                recipient:        address(this),
-                amountIn:         usdcBal,
-                amountOutMinimum: 0
-            })
-        );
+        uint256 diemOut = ISwapRouterV3Hop(swapRouter)
+            .exactInput(
+                ISwapRouterV3Hop.ExactInputParams({
+                    path: path, recipient: address(this), amountIn: usdcBal, amountOutMinimum: 0
+                })
+            );
         require(diemOut > 0, "swap returned 0");
 
         uint256 operatorDiem = (diemOut * operatorFeeBps) / 10_000;
-        uint256 holderDiem   = diemOut - operatorDiem;
+        uint256 holderDiem = diemOut - operatorDiem;
 
         // Raise rate for all holders
         if (holderDiem > 0) {
@@ -178,14 +178,17 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
         vault = IInferenceVault(_vault);
         emit VaultSet(_vault);
     }
+
     function setKeeper(address _keeper) external onlyOwner {
         keeper = _keeper;
         emit KeeperSet(_keeper);
     }
+
     function setAuthorizedSettler(address _settler) external onlyOwner {
         authorizedSettler = _settler;
         emit AuthorizedSettlerSet(_settler);
     }
+
     function setOperatorFeeBps(uint256 bps) external onlyOwner {
         require(bps <= MAX_OPERATOR_FEE_BPS, "exceeds max fee");
         operatorFeeBps = bps;

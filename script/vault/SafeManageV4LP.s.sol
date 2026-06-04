@@ -44,21 +44,24 @@ import {Script, console} from "forge-std/Script.sol";
 struct PoolKey {
     address currency0;
     address currency1;
-    uint24  fee;
-    int24   tickSpacing;
+    uint24 fee;
+    int24 tickSpacing;
     address hooks;
 }
 
 interface IPoolManager {
     struct ModifyLiquidityParams {
-        int24   tickLower;
-        int24   tickUpper;
-        int256  liquidityDelta;
+        int24 tickLower;
+        int24 tickUpper;
+        int256 liquidityDelta;
         bytes32 salt;
     }
     function unlock(bytes calldata data) external returns (bytes memory);
-    function modifyLiquidity(PoolKey calldata key, ModifyLiquidityParams calldata params, bytes calldata hookData)
-        external returns (int256 callerDelta, int256 feesAccrued);
+    function modifyLiquidity(
+        PoolKey calldata key,
+        ModifyLiquidityParams calldata params,
+        bytes calldata hookData
+    ) external returns (int256 callerDelta, int256 feesAccrued);
     function sync(address currency) external;
     function settle() external payable returns (uint256 paid);
     function take(address currency, address to, uint256 amount) external;
@@ -71,12 +74,30 @@ interface IERC20 {
 }
 
 interface ISafe {
-    function getTransactionHash(address to, uint256 value, bytes calldata data, uint8 operation,
-        uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken,
-        address refundReceiver, uint256 nonce) external view returns (bytes32);
-    function execTransaction(address to, uint256 value, bytes calldata data, uint8 operation,
-        uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken,
-        address payable refundReceiver, bytes memory signatures) external payable returns (bool);
+    function getTransactionHash(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint8 operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address refundReceiver,
+        uint256 nonce
+    ) external view returns (bytes32);
+    function execTransaction(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint8 operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address payable refundReceiver,
+        bytes memory signatures
+    ) external payable returns (bool);
     function nonce() external view returns (uint256);
 }
 
@@ -95,22 +116,26 @@ contract LiquidityManager {
     address public immutable wstDIEM;
     address public immutable safe;
 
-    int24 constant TICK_LOWER = 62160;
-    int24 constant TICK_UPPER = 92100;
+    int24 constant TICK_LOWER = 62_160;
+    int24 constant TICK_UPPER = 92_100;
 
-    enum Action { ADD, REMOVE, COLLECT_FEES }
+    enum Action {
+        ADD,
+        REMOVE,
+        COLLECT_FEES
+    }
 
     struct CallbackData {
         PoolKey key;
-        Action  action;
+        Action action;
         uint128 liquidity;
     }
 
     constructor(address _pm, address _weth, address _wstDIEM, address _safe) {
         poolManager = _pm;
-        weth        = _weth;
-        wstDIEM     = _wstDIEM;
-        safe        = _safe;
+        weth = _weth;
+        wstDIEM = _wstDIEM;
+        safe = _safe;
     }
 
     modifier onlySafe() {
@@ -156,15 +181,12 @@ contract LiquidityManager {
 
     function _unlock(Action action, uint128 liquidity) internal {
         PoolKey memory key = PoolKey({
-            currency0:   weth,
-            currency1:   wstDIEM,
-            fee:         3000,
-            tickSpacing: 60,
-            hooks:       address(0)
+            currency0: weth, currency1: wstDIEM, fee: 3000, tickSpacing: 60, hooks: address(0)
         });
         IERC20(weth).approve(poolManager, type(uint256).max);
         IERC20(wstDIEM).approve(poolManager, type(uint256).max);
-        bytes memory callbackData = abi.encode(CallbackData({key: key, action: action, liquidity: liquidity}));
+        bytes memory callbackData =
+            abi.encode(CallbackData({key: key, action: action, liquidity: liquidity}));
         IPoolManager(poolManager).unlock(callbackData);
     }
 
@@ -183,10 +205,10 @@ contract LiquidityManager {
         }
 
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower:      TICK_LOWER,
-            tickUpper:      TICK_UPPER,
+            tickLower: TICK_LOWER,
+            tickUpper: TICK_UPPER,
             liquidityDelta: liquidityDelta,
-            salt:           bytes32(0)
+            salt: bytes32(0)
         });
 
         (int256 callerDelta,) = IPoolManager(poolManager).modifyLiquidity(cd.key, params, "");
@@ -196,10 +218,12 @@ contract LiquidityManager {
 
         // PoolManager owes us tokens (remove or fee credit) → take
         if (amount0 > 0) {
-            IPoolManager(poolManager).take(cd.key.currency0, address(this), uint256(uint128(amount0)));
+            IPoolManager(poolManager)
+                .take(cd.key.currency0, address(this), uint256(uint128(amount0)));
         }
         if (amount1 > 0) {
-            IPoolManager(poolManager).take(cd.key.currency1, address(this), uint256(uint128(amount1)));
+            IPoolManager(poolManager)
+                .take(cd.key.currency1, address(this), uint256(uint128(amount1)));
         }
 
         // We owe PoolManager tokens (adding liquidity) → sync + transfer + settle
@@ -218,9 +242,9 @@ contract LiquidityManager {
     }
 
     function _returnExcess() internal {
-        uint256 w  = IERC20(weth).balanceOf(address(this));
+        uint256 w = IERC20(weth).balanceOf(address(this));
         uint256 ws = IERC20(wstDIEM).balanceOf(address(this));
-        if (w  > 0) IERC20(weth).transfer(safe, w);
+        if (w > 0) IERC20(weth).transfer(safe, w);
         if (ws > 0) IERC20(wstDIEM).transfer(safe, ws);
     }
 }
@@ -228,11 +252,11 @@ contract LiquidityManager {
 // ─── Script ───────────────────────────────────────────────────────────────────
 
 contract SafeManageV4LP is Script {
-    address constant SAFE         = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
+    address constant SAFE = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
     address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-    address constant WSTDIEM      = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
-    address constant WETH         = 0x4200000000000000000000000000000000000006;
-    address constant ZERO         = address(0);
+    address constant WSTDIEM = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant ZERO = address(0);
 
     uint256 sk1;
     uint256 sk2;
@@ -255,17 +279,19 @@ contract SafeManageV4LP is Script {
     // Post: excess tokens returned to Safe automatically.
     function addLiquidity() external {
         _loadSigners();
-        address manager  = vm.envAddress("MANAGER");
+        address manager = vm.envAddress("MANAGER");
         uint128 liquidity = uint128(vm.envUint("LIQUIDITY"));
-        uint256 wethBudget    = vm.envOr("WETH_BUDGET",    uint256(0.002e18));
+        uint256 wethBudget = vm.envOr("WETH_BUDGET", uint256(0.002e18));
         uint256 wstDiemBudget = vm.envOr("WSTDIEM_BUDGET", uint256(2.74e18));
 
         vm.startBroadcast(vm.envUint("EXECUTOR_PK"));
 
-        _execSafe(WETH,    abi.encodeWithSignature("transfer(address,uint256)", manager, wethBudget));
+        _execSafe(WETH, abi.encodeWithSignature("transfer(address,uint256)", manager, wethBudget));
         console.log("Tx1: sent", wethBudget, "WETH to manager");
 
-        _execSafe(WSTDIEM, abi.encodeWithSignature("transfer(address,uint256)", manager, wstDiemBudget));
+        _execSafe(
+            WSTDIEM, abi.encodeWithSignature("transfer(address,uint256)", manager, wstDiemBudget)
+        );
         console.log("Tx2: sent", wstDiemBudget, "wstDIEM to manager");
 
         _execSafe(manager, abi.encodeWithSignature("addLiquidity(uint128)", liquidity));
@@ -284,7 +310,7 @@ contract SafeManageV4LP is Script {
     //   $MANAGER $POOLID 62160 92100 0x0000...
     function removeLiquidity() external {
         _loadSigners();
-        address manager   = vm.envAddress("MANAGER");
+        address manager = vm.envAddress("MANAGER");
         uint128 liquidity = uint128(vm.envUint("LIQUIDITY"));
 
         vm.startBroadcast(vm.envUint("EXECUTOR_PK"));
@@ -316,16 +342,14 @@ contract SafeManageV4LP is Script {
     function _execSafe(address to, bytes memory data) internal {
         ISafe safe_ = ISafe(SAFE);
         uint256 nonce = safe_.nonce();
-        bytes32 txHash = safe_.getTransactionHash(
-            to, 0, data, 0, 0, 0, 0, ZERO, ZERO, nonce
-        );
+        bytes32 txHash = safe_.getTransactionHash(to, 0, data, 0, 0, 0, 0, ZERO, ZERO, nonce);
 
         address addr1 = vm.addr(sk1);
         address addr2 = vm.addr(sk2);
-        uint256 lower  = addr1 < addr2 ? sk1 : sk2;
+        uint256 lower = addr1 < addr2 ? sk1 : sk2;
         uint256 higher = addr1 < addr2 ? sk2 : sk1;
 
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(lower,  txHash);
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(lower, txHash);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(higher, txHash);
 
         bytes memory sigs = abi.encodePacked(r1, s1, v1, r2, s2, v2);

@@ -9,7 +9,13 @@ interface IChainlinkAggregator {
     function latestRoundData()
         external
         view
-        returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        );
     function decimals() external view returns (uint8);
 }
 
@@ -36,17 +42,17 @@ interface IChainlinkAggregator {
 // Chainlink ETH/USD on Base mainnet: 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb7
 // Staleness threshold: 1 hour (Chainlink heartbeat is 20 min on Base)
 contract WstDiemWethOracle {
-    IInferenceVault    public immutable vault;
+    IInferenceVault public immutable vault;
     IChainlinkAggregator public immutable ethUsdFeed;
-    uint256            public immutable stalenessThreshold; // seconds
+    uint256 public immutable stalenessThreshold; // seconds
 
     error StalePrice();
     error InvalidPrice();
 
     constructor(address _vault, address _ethUsdFeed, uint256 _stalenessThreshold) {
         require(_vault != address(0) && _ethUsdFeed != address(0), "zero address");
-        vault              = IInferenceVault(_vault);
-        ethUsdFeed         = IChainlinkAggregator(_ethUsdFeed);
+        vault = IInferenceVault(_vault);
+        ethUsdFeed = IChainlinkAggregator(_ethUsdFeed);
         stalenessThreshold = _stalenessThreshold;
     }
 

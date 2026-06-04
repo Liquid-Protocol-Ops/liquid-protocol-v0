@@ -13,24 +13,27 @@ contract InferenceVaultTest is Test {
     InferenceVault vault;
     MockDIEM diem;
 
-    address treasury     = makeAddr("treasury");
+    address treasury = makeAddr("treasury");
     address venueAdapter = makeAddr("venueAdapter");
     address veniceSigner = makeAddr("veniceSigner");
-    address alice        = makeAddr("alice");
-    address bob          = makeAddr("bob");
+    address alice = makeAddr("alice");
+    address bob = makeAddr("bob");
 
     function setUp() public {
         diem = new MockDIEM();
         vault = new InferenceVault(address(diem), treasury, veniceSigner, address(this));
         vault.setVenueAdapter(venueAdapter, true);
 
-        diem.mint(alice,        1_000e18);
-        diem.mint(bob,          1_000e18);
+        diem.mint(alice, 1000e18);
+        diem.mint(bob, 1000e18);
         diem.mint(venueAdapter, 10_000e18);
 
-        vm.prank(alice);        diem.approve(address(vault), type(uint256).max);
-        vm.prank(bob);          diem.approve(address(vault), type(uint256).max);
-        vm.prank(venueAdapter); diem.approve(address(vault), type(uint256).max);
+        vm.prank(alice);
+        diem.approve(address(vault), type(uint256).max);
+        vm.prank(bob);
+        diem.approve(address(vault), type(uint256).max);
+        vm.prank(venueAdapter);
+        diem.approve(address(vault), type(uint256).max);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -58,18 +61,21 @@ contract InferenceVaultTest is Test {
     // ── Staking mechanics ────────────────────────────────────────────────────
 
     function test_deposit_stakesAllDIEMInVenice() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         (uint256 staked,,) = diem.stakedInfos(address(vault));
         assertEq(staked, 100e18);
     }
 
     function test_deposit_vaultLiquidBalanceIsZero() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         assertEq(diem.balanceOf(address(vault)), 0);
     }
 
     function test_totalAssets_sumsStakedUnstakingAndIdle() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         diem.mint(address(vault), 5e18);
         assertEq(vault.totalAssets(), 105e18);
     }
@@ -77,12 +83,15 @@ contract InferenceVaultTest is Test {
     // pendingWithdrawalDiem is set at requestRedeem (not at flush).
     // totalAssets() must exclude it immediately — oracle always clean.
     function test_totalAssets_excludesPendingWithdrawal() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
         uint256 assetsBefore = vault.totalAssets();
 
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
 
         uint256 pending = vault.pendingWithdrawalDiem();
         assertGt(pending, 0);
@@ -92,12 +101,14 @@ contract InferenceVaultTest is Test {
     // ── Deposit fee ──────────────────────────────────────────────────────────
 
     function test_deposit_lowTierFee_10bps() public {
-        vm.prank(alice); vault.deposit(1_000e18, alice);
+        vm.prank(alice);
+        vault.deposit(1000e18, alice);
         assertGt(vault.balanceOf(treasury), 0);
     }
 
     function test_deposit_feeSharesAndUserSharesSumToTotalSupply() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         assertEq(vault.balanceOf(alice) + vault.balanceOf(treasury), vault.totalSupply());
     }
 
@@ -121,31 +132,38 @@ contract InferenceVaultTest is Test {
 
     function test_deposit_succeedsAtExactCap() public {
         vault.setMaxTotalStake(100e18);
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         assertGt(vault.balanceOf(alice), 0);
     }
 
     // ── creditDIEM — yield accrual ───────────────────────────────────────────
 
     function test_creditDIEM_stakesInVenice() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         (uint256 stakedBefore,,) = diem.stakedInfos(address(vault));
-        vm.prank(venueAdapter); vault.creditDIEM(10e18);
-        (uint256 stakedAfter,,)  = diem.stakedInfos(address(vault));
+        vm.prank(venueAdapter);
+        vault.creditDIEM(10e18);
+        (uint256 stakedAfter,,) = diem.stakedInfos(address(vault));
         assertEq(stakedAfter, stakedBefore + 10e18);
     }
 
     function test_creditDIEM_noNewShares() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 supplyBefore = vault.totalSupply();
-        vm.prank(venueAdapter); vault.creditDIEM(10e18);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(10e18);
         assertEq(vault.totalSupply(), supplyBefore);
     }
 
     function test_creditDIEM_increasesRate() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 rateBefore = vault.convertToAssets(1e18);
-        vm.prank(venueAdapter); vault.creditDIEM(10e18);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(10e18);
         assertGt(vault.convertToAssets(1e18), rateBefore);
     }
 
@@ -159,51 +177,67 @@ contract InferenceVaultTest is Test {
     // An inference source routes their cut as wstDIEM so it compounds
     // rather than sitting idle. No entry fee — it's earned revenue.
     function test_creditWstDIEM_mintsSharesAtCurrentRate() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 rateBefore = vault.convertToAssets(1e18);
 
         address source = makeAddr("source");
         vault.setVenueAdapter(source, true);
         diem.mint(source, 20e18);
-        vm.prank(source); diem.approve(address(vault), type(uint256).max);
+        vm.prank(source);
+        diem.approve(address(vault), type(uint256).max);
 
         uint256 supplyBefore = vault.totalSupply();
-        vm.prank(source); vault.creditWstDIEM(20e18, source);
+        vm.prank(source);
+        vault.creditWstDIEM(20e18, source);
 
         assertGt(vault.balanceOf(source), 0, "source must receive wstDIEM");
         // Rate must be unchanged — source paid for the shares with DIEM
-        assertApproxEqAbs(vault.convertToAssets(1e18), rateBefore, 1,
-            "rate must not change when source deposits via creditWstDIEM");
+        assertApproxEqAbs(
+            vault.convertToAssets(1e18),
+            rateBefore,
+            1,
+            "rate must not change when source deposits via creditWstDIEM"
+        );
         assertGt(vault.totalSupply(), supplyBefore, "supply increased");
     }
 
     // creditWstDIEM has no entry fee — all DIEM becomes backing
     function test_creditWstDIEM_noFee_fullBacking() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
 
         address source = makeAddr("source");
         vault.setVenueAdapter(source, true);
         diem.mint(source, 10e18);
-        vm.prank(source); diem.approve(address(vault), type(uint256).max);
+        vm.prank(source);
+        diem.approve(address(vault), type(uint256).max);
 
         uint256 shares = vault.previewDeposit(10e18); // shares WITH fee
-        vm.prank(source); vault.creditWstDIEM(10e18, source);
+        vm.prank(source);
+        vault.creditWstDIEM(10e18, source);
         // Should have received MORE shares than previewDeposit since no fee applies
-        assertGe(vault.balanceOf(source), shares,
-            "creditWstDIEM must issue >= shares of a fee-bearing deposit");
+        assertGe(
+            vault.balanceOf(source),
+            shares,
+            "creditWstDIEM must issue >= shares of a fee-bearing deposit"
+        );
     }
 
     // Caller and recipient can differ — source credits wstDIEM to another address
     function test_creditWstDIEM_differentRecipient() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
 
-        address source   = makeAddr("source");
+        address source = makeAddr("source");
         address operator = makeAddr("operator");
         vault.setVenueAdapter(source, true);
         diem.mint(source, 10e18);
-        vm.prank(source); diem.approve(address(vault), type(uint256).max);
+        vm.prank(source);
+        diem.approve(address(vault), type(uint256).max);
 
-        vm.prank(source); vault.creditWstDIEM(10e18, operator);
+        vm.prank(source);
+        vault.creditWstDIEM(10e18, operator);
         assertGt(vault.balanceOf(operator), 0);
         assertEq(vault.balanceOf(source), 0, "source gets nothing when operator is recipient");
     }
@@ -216,13 +250,16 @@ contract InferenceVaultTest is Test {
     // The intended split pattern: source earns 100 DIEM, routes 80 to holders
     // via creditDIEM and reinvests 20 as wstDIEM via creditWstDIEM.
     function test_creditWstDIEM_splitPattern() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
 
         address source = makeAddr("source");
         vault.setVenueAdapter(source, true);
         diem.mint(source, 100e18);
-        vm.prank(source); diem.approve(address(vault), type(uint256).max);
+        vm.prank(source);
+        diem.approve(address(vault), type(uint256).max);
 
         uint256 rateBefore = vault.convertToAssets(1e18);
 
@@ -265,11 +302,15 @@ contract InferenceVaultTest is Test {
         address adapter2 = makeAddr("adapter2");
         vault.setVenueAdapter(adapter2, true);
         diem.mint(adapter2, 100e18);
-        vm.prank(adapter2); diem.approve(address(vault), type(uint256).max);
+        vm.prank(adapter2);
+        diem.approve(address(vault), type(uint256).max);
 
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(venueAdapter); vault.creditDIEM(10e18);
-        vm.prank(adapter2);     vault.creditDIEM(10e18);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(10e18);
+        vm.prank(adapter2);
+        vault.creditDIEM(10e18);
 
         (uint256 staked,,) = diem.stakedInfos(address(vault));
         assertEq(staked, 120e18);
@@ -277,7 +318,8 @@ contract InferenceVaultTest is Test {
 
     function test_venueAdapter_revoked_reverts() public {
         vault.setVenueAdapter(venueAdapter, false);
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         vm.prank(venueAdapter);
         vm.expectRevert(abi.encodeWithSignature("NotVenueAdapter()"));
         vault.creditDIEM(10e18);
@@ -291,99 +333,128 @@ contract InferenceVaultTest is Test {
     // collateral position can be over-borrowed during the ~24h cooldown window.
 
     function test_rate_stableAfterRequestRedeem() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
-        vm.prank(venueAdapter); vault.creditDIEM(20e18);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(20e18);
         uint256 rateBefore = vault.convertToAssets(1e18);
 
         uint256 aliceShares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(aliceShares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(aliceShares, alice);
 
-        assertApproxEqAbs(vault.convertToAssets(1e18), rateBefore, 1,
-            "rate must not change after requestRedeem");
+        assertApproxEqAbs(
+            vault.convertToAssets(1e18), rateBefore, 1, "rate must not change after requestRedeem"
+        );
     }
 
     function test_rate_stableAfterFlush() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
-        vm.prank(venueAdapter); vault.creditDIEM(20e18);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(20e18);
         uint256 rateBefore = vault.convertToAssets(1e18);
 
         uint256 aliceShares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(aliceShares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(aliceShares, alice);
         _warpBatchOpen();
         vault.flush();
 
-        assertApproxEqAbs(vault.convertToAssets(1e18), rateBefore, 1,
-            "rate must not inflate during cooldown window");
+        assertApproxEqAbs(
+            vault.convertToAssets(1e18),
+            rateBefore,
+            1,
+            "rate must not inflate during cooldown window"
+        );
     }
 
     function test_rate_stableAfterSettle() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
-        vm.prank(venueAdapter); vault.creditDIEM(20e18);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(20e18);
         uint256 rateBefore = vault.convertToAssets(1e18);
 
         uint256 aliceShares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(aliceShares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(aliceShares, alice);
         _warpBatchOpen();
         vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
 
-        assertApproxEqAbs(vault.convertToAssets(1e18), rateBefore, 1,
-            "rate must stay stable after settle");
+        assertApproxEqAbs(
+            vault.convertToAssets(1e18), rateBefore, 1, "rate must stay stable after settle"
+        );
     }
 
     function test_rate_monotoneAfterMultipleDepositsAndCredits() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
         uint256 r0 = vault.convertToAssets(1e18);
-        vm.prank(venueAdapter); vault.creditDIEM(20e18);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(20e18);
         uint256 r1 = vault.convertToAssets(1e18);
-        vm.prank(venueAdapter); vault.creditDIEM(20e18);
+        vm.prank(venueAdapter);
+        vault.creditDIEM(20e18);
         uint256 r2 = vault.convertToAssets(1e18);
         assertGt(r1, r0);
         assertGt(r2, r1);
     }
 
     function test_rate_notDecreaseOnNewDeposit() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 rBefore = vault.convertToAssets(1e18);
-        vm.prank(bob); vault.deposit(100e18, bob);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
         assertGe(vault.convertToAssets(1e18), rBefore - 1);
     }
 
     // ── Instant withdrawal disabled ──────────────────────────────────────────
 
     function test_maxWithdraw_alwaysZero() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         assertEq(vault.maxWithdraw(alice), 0);
     }
 
     function test_maxRedeem_alwaysZero() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         assertEq(vault.maxRedeem(alice), 0);
     }
 
     // ── Step 1: requestRedeem ────────────────────────────────────────────────
 
     function test_requestRedeem_burnsSharesImmediately() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        uint256 shares       = vault.balanceOf(alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        uint256 shares = vault.balanceOf(alice);
         uint256 supplyBefore = vault.totalSupply();
 
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
 
-        assertEq(vault.balanceOf(alice), 0,              "alice shares burned");
+        assertEq(vault.balanceOf(alice), 0, "alice shares burned");
         assertEq(vault.totalSupply(), supplyBefore - shares, "totalSupply decreased");
-        assertEq(vault.balanceOf(address(vault)), 0,     "no escrow shares in new model");
+        assertEq(vault.balanceOf(address(vault)), 0, "no escrow shares in new model");
     }
 
     function test_requestRedeem_locksExactDiemAtCurrentRate() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        uint256 shares      = vault.balanceOf(alice);
-        uint256 expected    = vault.previewRedeem(shares);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        uint256 shares = vault.balanceOf(alice);
+        uint256 expected = vault.previewRedeem(shares);
 
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
@@ -393,19 +464,23 @@ contract InferenceVaultTest is Test {
     }
 
     function test_requestRedeem_rateUnchanged() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
-        uint256 rateBefore  = vault.convertToAssets(1e18);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
+        uint256 rateBefore = vault.convertToAssets(1e18);
 
         uint256 aliceShares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(aliceShares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(aliceShares, alice);
 
         assertEq(vault.convertToAssets(1e18), rateBefore);
     }
 
     function test_requestRedeem_differentReceiver() public {
         address charlie = makeAddr("charlie");
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
 
         vm.prank(alice);
@@ -416,43 +491,53 @@ contract InferenceVaultTest is Test {
     }
 
     function test_requestRedeem_multipleUsers_sameOrdering() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
 
         uint256 aliceShares = vault.balanceOf(alice);
-        uint256 bobShares   = vault.balanceOf(bob);
+        uint256 bobShares = vault.balanceOf(bob);
 
-        vm.prank(alice); uint256 reqA = vault.requestRedeem(aliceShares, alice);
-        vm.prank(bob);   uint256 reqB = vault.requestRedeem(bobShares,   bob);
+        vm.prank(alice);
+        uint256 reqA = vault.requestRedeem(aliceShares, alice);
+        vm.prank(bob);
+        uint256 reqB = vault.requestRedeem(bobShares, bob);
 
         assertEq(reqB, reqA + 1, "sequential requestIds");
-        (,,uint32 bA,,,) = vault.requestStatus(reqA);
-        (,,uint32 bB,,,) = vault.requestStatus(reqB);
+        (,, uint32 bA,,,) = vault.requestStatus(reqA);
+        (,, uint32 bB,,,) = vault.requestStatus(reqB);
         assertEq(bA, bB, "same batch");
     }
 
     function test_requestRedeem_batchUserCountIncrements() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
 
         uint256 aliceShares = vault.balanceOf(alice);
-        uint256 bobShares   = vault.balanceOf(bob);
-        vm.prank(alice); vault.requestRedeem(aliceShares, alice);
-        vm.prank(bob);   vault.requestRedeem(bobShares,   bob);
+        uint256 bobShares = vault.balanceOf(bob);
+        vm.prank(alice);
+        vault.requestRedeem(aliceShares, alice);
+        vm.prank(bob);
+        vault.requestRedeem(bobShares, bob);
 
-        (,,,uint32 userCount,) = vault.unstakeBatches(1);
+        (,,, uint32 userCount,) = vault.unstakeBatches(1);
         assertEq(userCount, 2);
     }
 
     function test_requestRedeem_revertsZeroShares() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         vm.prank(alice);
         vm.expectRevert("below minRedeemShares");
         vault.requestRedeem(0, alice);
     }
 
     function test_requestRedeem_revertsBelowMinimum() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         // Raise the minimum above alice's balance (no prank — test contract is owner)
         vault.setMinRedeemShares(200e18);
         uint256 shares = vault.balanceOf(alice); // ~99.9e18 < 200e18 min
@@ -462,16 +547,20 @@ contract InferenceVaultTest is Test {
     }
 
     function test_getRedeemRequests_returnsRequestIds() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
 
         uint256 aShares = vault.balanceOf(alice);
         uint256 bShares = vault.balanceOf(bob);
-        vm.prank(alice); uint256 reqA = vault.requestRedeem(aShares, alice);
-        vm.prank(bob);   uint256 reqB = vault.requestRedeem(bShares, bob);
+        vm.prank(alice);
+        uint256 reqA = vault.requestRedeem(aShares, alice);
+        vm.prank(bob);
+        uint256 reqB = vault.requestRedeem(bShares, bob);
 
         uint256[] memory aliceReqs = vault.getRedeemRequests(alice);
-        uint256[] memory bobReqs   = vault.getRedeemRequests(bob);
+        uint256[] memory bobReqs = vault.getRedeemRequests(bob);
 
         assertEq(aliceReqs.length, 1);
         assertEq(aliceReqs[0], reqA);
@@ -480,17 +569,21 @@ contract InferenceVaultTest is Test {
     }
 
     function test_getRedeemRequests_appendsOnMultipleRequests() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         // Need two separate deposits for two redemptions
         diem.mint(alice, 100e18);
 
         uint256 shares1 = vault.balanceOf(alice) / 2;
-        vm.prank(alice); uint256 req1 = vault.requestRedeem(shares1, alice);
+        vm.prank(alice);
+        uint256 req1 = vault.requestRedeem(shares1, alice);
 
         // Second deposit then second redemption
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares2 = vault.balanceOf(alice);
-        vm.prank(alice); uint256 req2 = vault.requestRedeem(shares2, alice);
+        vm.prank(alice);
+        uint256 req2 = vault.requestRedeem(shares2, alice);
 
         uint256[] memory reqs = vault.getRedeemRequests(alice);
         assertEq(reqs.length, 2);
@@ -501,9 +594,11 @@ contract InferenceVaultTest is Test {
     function test_getRedeemRequests_differentReceiver() public {
         // requestRedeem tracks by receiver, not msg.sender
         address charlie = makeAddr("charlie");
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); uint256 reqId = vault.requestRedeem(shares, charlie);
+        vm.prank(alice);
+        uint256 reqId = vault.requestRedeem(shares, charlie);
 
         assertEq(vault.getRedeemRequests(charlie).length, 1);
         assertEq(vault.getRedeemRequests(charlie)[0], reqId);
@@ -511,7 +606,8 @@ contract InferenceVaultTest is Test {
     }
 
     function test_requestRedeem_revertsZeroReceiver() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
         vm.expectRevert("zero receiver");
@@ -521,9 +617,11 @@ contract InferenceVaultTest is Test {
     // ── Step 2: flush ────────────────────────────────────────────────────────
 
     function test_flush_initiatesVeniceUnstake() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
         _warpBatchOpen();
         vault.flush();
         (,, uint256 coolDownAmount) = diem.stakedInfos(address(vault));
@@ -531,9 +629,11 @@ contract InferenceVaultTest is Test {
     }
 
     function test_flush_advancesCurrentBatch() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
         assertEq(vault.currentBatch(), 1);
         _warpBatchOpen();
         vault.flush();
@@ -541,9 +641,11 @@ contract InferenceVaultTest is Test {
     }
 
     function test_flush_setsUnstakingBatch() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
         _warpBatchOpen();
         vault.flush();
         assertEq(vault.unstakingBatch(), 1);
@@ -555,25 +657,31 @@ contract InferenceVaultTest is Test {
     }
 
     function test_flush_revertsWhenBatchTooNew() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
         // do NOT warp — batch too new
         vm.expectRevert(abi.encodeWithSignature("BatchTooNew()"));
         vault.flush();
     }
 
     function test_flush_revertsWhenPriorBatchUnstaking() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 aliceShares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(aliceShares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(aliceShares, alice);
         _warpBatchOpen();
         vault.flush();
 
         // Start second batch while first is unstaking
-        vm.prank(bob); vault.deposit(100e18, bob);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
         uint256 bobShares = vault.balanceOf(bob);
-        vm.prank(bob); vault.requestRedeem(bobShares, bob);
+        vm.prank(bob);
+        vault.requestRedeem(bobShares, bob);
         _warpBatchOpen();
         vm.expectRevert(abi.encodeWithSignature("PriorBatchUnstaking()"));
         vault.flush();
@@ -639,10 +747,12 @@ contract InferenceVaultTest is Test {
     function test_unpause_restoresDeposit() public {
         vault.pause();
         vm.expectRevert();
-        vm.prank(alice); vault.deposit(1e18, alice);
+        vm.prank(alice);
+        vault.deposit(1e18, alice);
         vault.unpause();
         // After unpause deposit should succeed
-        vm.prank(alice); vault.deposit(1e18, alice);
+        vm.prank(alice);
+        vault.deposit(1e18, alice);
         assertGt(vault.balanceOf(alice), 0);
     }
 
@@ -655,20 +765,26 @@ contract InferenceVaultTest is Test {
     // ── Step 3: settle ───────────────────────────────────────────────────────
 
     function test_settle_movesVeniceDIEMToBalance() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
         assertGt(diem.balanceOf(address(vault)), 0);
     }
 
     function test_settle_marksBatchSettled() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
         (,,,, bool settled) = vault.unstakeBatches(1);
@@ -676,10 +792,13 @@ contract InferenceVaultTest is Test {
     }
 
     function test_settle_clearsUnstakingBatch() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
         assertEq(vault.unstakingBatch(), 0);
@@ -691,19 +810,25 @@ contract InferenceVaultTest is Test {
     }
 
     function test_settle_revertsBeforeCooldown() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
+        _warpBatchOpen();
+        vault.flush();
         vm.expectRevert(abi.encodeWithSignature("BatchNotReady()"));
         vault.settle();
     }
 
     function test_settle_revertsOnDoubleSettle() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
         // After settle(), unstakingBatch resets to 0, so next settle() sees no
@@ -715,13 +840,15 @@ contract InferenceVaultTest is Test {
     // ── Step 4: claimRedeem ──────────────────────────────────────────────────
 
     function test_claimRedeem_transfersDIEM() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        uint256 shares      = vault.balanceOf(alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        uint256 shares = vault.balanceOf(alice);
         uint256 expectedDiem = vault.previewRedeem(shares);
 
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
 
@@ -732,11 +859,13 @@ contract InferenceVaultTest is Test {
 
     // Anyone can trigger claimRedeem — DIEM always goes to the recorded receiver.
     function test_claimRedeem_anyoneCanTriggerOnBehalfOfReceiver() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
 
@@ -747,21 +876,25 @@ contract InferenceVaultTest is Test {
     }
 
     function test_claimRedeem_revertsBeforeSettle() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        _warpBatchOpen();
+        vault.flush();
         vm.expectRevert(abi.encodeWithSignature("BatchNotSettled()"));
         vault.claimRedeem(reqId);
     }
 
     function test_claimRedeem_revertsOnDoubleClaim() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
         vault.claimRedeem(reqId);
@@ -772,39 +905,49 @@ contract InferenceVaultTest is Test {
     // ── Full lifecycle — multiple users ──────────────────────────────────────
 
     function test_fullLifecycle_multipleUsersProportional() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(200e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(200e18, bob);
 
         uint256 aliceShares = vault.balanceOf(alice);
-        uint256 bobShares   = vault.balanceOf(bob);
-        vm.prank(alice); uint256 reqA = vault.requestRedeem(aliceShares, alice);
-        vm.prank(bob);   uint256 reqB = vault.requestRedeem(bobShares,   bob);
+        uint256 bobShares = vault.balanceOf(bob);
+        vm.prank(alice);
+        uint256 reqA = vault.requestRedeem(aliceShares, alice);
+        vm.prank(bob);
+        uint256 reqB = vault.requestRedeem(bobShares, bob);
 
-        _warpBatchOpen(); vault.flush();
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
 
         uint256 aliceBefore = diem.balanceOf(alice);
-        uint256 bobBefore   = diem.balanceOf(bob);
+        uint256 bobBefore = diem.balanceOf(bob);
         vault.claimRedeem(reqA);
         vault.claimRedeem(reqB);
 
         uint256 aliceDiem = diem.balanceOf(alice) - aliceBefore;
-        uint256 bobDiem   = diem.balanceOf(bob)   - bobBefore;
+        uint256 bobDiem = diem.balanceOf(bob) - bobBefore;
         assertApproxEqRel(bobDiem, aliceDiem * 2, 0.001e18);
     }
 
     function test_fullLifecycle_pendingWithdrawalDiemClearsAfterAllClaims() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
 
         uint256 aShares = vault.balanceOf(alice);
         uint256 bShares = vault.balanceOf(bob);
-        vm.prank(alice); uint256 reqA = vault.requestRedeem(aShares, alice);
-        vm.prank(bob);   uint256 reqB = vault.requestRedeem(bShares, bob);
+        vm.prank(alice);
+        uint256 reqA = vault.requestRedeem(aShares, alice);
+        vm.prank(bob);
+        uint256 reqB = vault.requestRedeem(bShares, bob);
 
         assertGt(vault.pendingWithdrawalDiem(), 0);
-        _warpBatchOpen(); vault.flush();
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
 
@@ -816,19 +959,25 @@ contract InferenceVaultTest is Test {
 
     function test_sequential_batches_work() public {
         // Batch 1
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 aShares = vault.balanceOf(alice);
-        vm.prank(alice); uint256 req1 = vault.requestRedeem(aShares, alice);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(alice);
+        uint256 req1 = vault.requestRedeem(aShares, alice);
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
         vault.claimRedeem(req1);
 
         // Batch 2 — only starts after batch 1 settled
-        vm.prank(bob); vault.deposit(100e18, bob);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
         uint256 bShares = vault.balanceOf(bob);
-        vm.prank(bob); uint256 req2 = vault.requestRedeem(bShares, bob);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(bob);
+        uint256 req2 = vault.requestRedeem(bShares, bob);
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
 
@@ -840,13 +989,20 @@ contract InferenceVaultTest is Test {
     // ── View helpers ─────────────────────────────────────────────────────────
 
     function test_requestStatus_view() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
 
-        (address receiver, uint256 diem_, uint32 batchId, uint64 unlockAt, bool settled, bool claimed)
-            = vault.requestStatus(reqId);
+        (
+            address receiver,
+            uint256 diem_,
+            uint32 batchId,
+            uint64 unlockAt,
+            bool settled,
+            bool claimed
+        ) = vault.requestStatus(reqId);
 
         assertEq(receiver, alice);
         assertGt(diem_, 0);
@@ -857,12 +1013,14 @@ contract InferenceVaultTest is Test {
     }
 
     function test_currentBatchInfo_view() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
 
-        (uint32 batchId, uint128 diemTotal,, uint32 userCount, uint64 flushableAt)
-            = vault.currentBatchInfo();
+        (uint32 batchId, uint128 diemTotal,, uint32 userCount, uint64 flushableAt) =
+            vault.currentBatchInfo();
 
         assertEq(batchId, 1);
         assertGt(diemTotal, 0);
@@ -880,7 +1038,8 @@ contract InferenceVaultTest is Test {
     }
 
     function test_pause_blocksRequestRedeem() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         vault.pause();
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
@@ -889,9 +1048,11 @@ contract InferenceVaultTest is Test {
     }
 
     function test_pause_blocksFlush() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
         vault.pause();
         _warpBatchOpen();
         vm.expectRevert();
@@ -899,10 +1060,13 @@ contract InferenceVaultTest is Test {
     }
 
     function test_pause_doesNotBlockSettle() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
-        vm.prank(alice); vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        vm.prank(alice);
+        vault.requestRedeem(shares, alice);
+        _warpBatchOpen();
+        vault.flush();
         vault.pause(); // paused AFTER flush
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle(); // must succeed despite pause
@@ -911,11 +1075,13 @@ contract InferenceVaultTest is Test {
     }
 
     function test_pause_doesNotBlockClaimRedeem() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
-        _warpBatchOpen(); vault.flush();
+        _warpBatchOpen();
+        vault.flush();
         vm.warp(block.timestamp + diem.cooldownDuration() + 1);
         vault.settle();
         vault.pause(); // paused after settle
@@ -927,9 +1093,9 @@ contract InferenceVaultTest is Test {
     // ── ERC-1271 ─────────────────────────────────────────────────────────────
 
     function test_isValidSignature_veniceSignerAccepted() public {
-        uint256 signerPk   = uint256(keccak256("venice-signer-pk"));
+        uint256 signerPk = uint256(keccak256("venice-signer-pk"));
         address signerAddr = vm.addr(signerPk);
-        InferenceVault v2  = new InferenceVault(address(diem), treasury, signerAddr, address(this));
+        InferenceVault v2 = new InferenceVault(address(diem), treasury, signerAddr, address(this));
 
         bytes32 hash = keccak256("venice-api-challenge");
         (uint8 vv, bytes32 r, bytes32 s) = vm.sign(signerPk, hash);
@@ -938,20 +1104,20 @@ contract InferenceVaultTest is Test {
 
     function test_isValidSignature_ownerWithoutVeniceSigner_rejected() public view {
         uint256 ownerPk = uint256(keccak256("owner-pk"));
-        bytes32 hash    = keccak256("venice-api-challenge");
+        bytes32 hash = keccak256("venice-api-challenge");
         (uint8 vv, bytes32 r, bytes32 s) = vm.sign(ownerPk, hash);
         assertEq(vault.isValidSignature(hash, abi.encodePacked(r, s, vv)), bytes4(0xffffffff));
     }
 
     function test_isValidSignature_strangerRejected() public view {
         uint256 strangerPk = uint256(keccak256("stranger-pk"));
-        bytes32 hash       = keccak256("venice-api-challenge");
+        bytes32 hash = keccak256("venice-api-challenge");
         (uint8 vv, bytes32 r, bytes32 s) = vm.sign(strangerPk, hash);
         assertEq(vault.isValidSignature(hash, abi.encodePacked(r, s, vv)), bytes4(0xffffffff));
     }
 
     function test_setVeniceSigner_rotatesKey() public {
-        uint256 newPk   = uint256(keccak256("new-venice-pk"));
+        uint256 newPk = uint256(keccak256("new-venice-pk"));
         address newAddr = vm.addr(newPk);
         vault.setVeniceSigner(newAddr);
         assertEq(vault.veniceSigner(), newAddr);
@@ -963,17 +1129,21 @@ contract InferenceVaultTest is Test {
     // ── VOL accounting ────────────────────────────────────────────────────────
 
     function test_vaultOwnedShares_excludedFromEffectiveRate() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 rateBefore = vault.convertToAssets(1e18);
         uint256 half = vault.balanceOf(alice) / 2;
-        vm.prank(alice); vault.transfer(address(vault), half);
+        vm.prank(alice);
+        vault.transfer(address(vault), half);
         assertEq(vault.convertToAssets(1e18), rateBefore);
     }
 
     function test_vaultOwnedShares_returnsVaultBalance() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 half = vault.balanceOf(alice) / 2;
-        vm.prank(alice); vault.transfer(address(vault), half);
+        vm.prank(alice);
+        vault.transfer(address(vault), half);
         assertEq(vault.vaultOwnedShares(), half);
     }
 }
@@ -989,30 +1159,34 @@ contract InferenceVaultForkTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault = new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
+        vault =
+            new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
         vault.setVenueAdapter(makeAddr("venueAdapter"), true);
-        deal(DIEM, alice, 1_000e18);
-        vm.prank(alice); IERC20(DIEM).approve(address(vault), type(uint256).max);
+        deal(DIEM, alice, 1000e18);
+        vm.prank(alice);
+        IERC20(DIEM).approve(address(vault), type(uint256).max);
     }
 
     function test_fork_deposit_stakesInVenice() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         assertEq(IERC20(DIEM).balanceOf(address(vault)), 0);
-        (bool ok, bytes memory data) = DIEM.staticcall(
-            abi.encodeWithSignature("stakedInfos(address)", address(vault))
-        );
+        (bool ok, bytes memory data) =
+            DIEM.staticcall(abi.encodeWithSignature("stakedInfos(address)", address(vault)));
         assertTrue(ok);
         (uint256 staked,,) = abi.decode(data, (uint256, uint256, uint256));
         assertEq(staked, 100e18);
     }
 
     function test_fork_totalAssets_matchesStakedInfos() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         assertEq(vault.totalAssets(), 100e18);
     }
 
     function test_fork_requestRedeem_fullLifecycle() public {
-        vm.prank(alice); vault.deposit(100e18, alice);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
         uint256 reqId = vault.requestRedeem(shares, alice);
@@ -1032,10 +1206,13 @@ contract InferenceVaultForkTest is Test {
 
     function test_fork_multipleDepositors_rateConsistent() public {
         address bob = makeAddr("bob");
-        deal(DIEM, bob, 1_000e18);
-        vm.prank(bob); IERC20(DIEM).approve(address(vault), type(uint256).max);
-        vm.prank(alice); vault.deposit(100e18, alice);
-        vm.prank(bob);   vault.deposit(100e18, bob);
+        deal(DIEM, bob, 1000e18);
+        vm.prank(bob);
+        IERC20(DIEM).approve(address(vault), type(uint256).max);
+        vm.prank(alice);
+        vault.deposit(100e18, alice);
+        vm.prank(bob);
+        vault.deposit(100e18, bob);
         assertApproxEqRel(vault.balanceOf(alice), vault.balanceOf(bob), 0.01e18);
     }
 }
