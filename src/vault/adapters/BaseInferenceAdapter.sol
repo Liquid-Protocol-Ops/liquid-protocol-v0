@@ -54,11 +54,11 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
     ///         is vault.asset() so tests can use MockDIEM.
     address public constant DIEM_MAINNET = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
 
-    /// @notice Uniswap V3 USDC/WETH fee tier: 0.05%.
-    uint24 internal constant USDC_WETH_FEE = 500;
+    /// @notice Uniswap V3 USDC/WETH fee tier. Default 0.05%. Owner-updatable.
+    uint24 public usdcWethFee = 500;
 
-    /// @notice Uniswap V3 WETH/DIEM fee tier: 1%.
-    uint24 internal constant DIEM_FEE = 10_000;
+    /// @notice Uniswap V3 WETH/DIEM fee tier. Default 1%. Owner-updatable.
+    uint24 public diemFee = 10_000;
 
     // ─── Config ──────────────────────────────────────────────────────────────
     uint256 public constant MAX_OPERATOR_FEE_BPS = 2000; // 20%
@@ -85,6 +85,7 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
     event KeeperSet(address indexed keeper);
     event AuthorizedSettlerSet(address indexed settler);
     event OperatorFeeBpsSet(uint256 bps);
+    event SwapFeesSet(uint24 usdcWethFee, uint24 diemFee);
 
     // ─── Constructor ─────────────────────────────────────────────────────────
     constructor(address _vault, address _usdc, address _swapRouter, address initialOwner)
@@ -134,7 +135,7 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
         IERC20(usdc).forceApprove(swapRouter, usdcBal);
 
         // Multi-hop: USDC → WETH (0.05%) → DIEM (1%)
-        bytes memory path = abi.encodePacked(usdc, USDC_WETH_FEE, WETH, DIEM_FEE, diem);
+        bytes memory path = abi.encodePacked(usdc, usdcWethFee, WETH, diemFee, diem);
 
         uint256 diemOut = ISwapRouterV3Hop(swapRouter)
             .exactInput(
@@ -193,6 +194,14 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
         require(bps <= MAX_OPERATOR_FEE_BPS, "exceeds max fee");
         operatorFeeBps = bps;
         emit OperatorFeeBpsSet(bps);
+    }
+
+    function setSwapFees(uint24 _usdcWethFee, uint24 _diemFee) external onlyOwner {
+        require(_usdcWethFee > 0 && _usdcWethFee <= 10_000, "invalid USDC/WETH fee");
+        require(_diemFee > 0 && _diemFee <= 10_000, "invalid DIEM fee");
+        usdcWethFee = _usdcWethFee;
+        diemFee = _diemFee;
+        emit SwapFeesSet(_usdcWethFee, _diemFee);
     }
 
     /// @notice Withdraw accumulated wstDIEM (operator cut) or any stranded token.

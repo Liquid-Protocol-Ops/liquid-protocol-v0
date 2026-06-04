@@ -55,8 +55,8 @@ contract FeeRouter is Ownable {
     // Uniswap V3 SwapRouter02 on Base
     address constant V3_ROUTER = 0x2626664c2603336E57B271c5C0b26F421741e481;
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    uint24 constant DIEM_FEE = 10_000; // WETH/DIEM V3 1%
-    uint24 constant USDC_WETH_FEE = 500; // USDC/WETH V3 0.05%
+    uint24 public diemFee = 10_000;     // WETH/DIEM V3 pool fee tier. Owner-updatable.
+    uint24 public usdcWethFee = 500;    // USDC/WETH V3 pool fee tier. Owner-updatable.
 
     IInferenceVault public immutable vault;
     address public immutable weth;
@@ -110,6 +110,7 @@ contract FeeRouter is Ownable {
     event Harvested(uint256 diemCredited, uint256 wstDiemToVOL);
     event VVVHarvested(uint256 vvvIn, uint256 diemCredited);
     event FeeModeChanged(string token, FeeMode mode);
+    event SwapFeesSet(uint24 diemFee, uint24 usdcWethFee);
     event GovernanceInitialized(address governance);
     event KeeperUpdated(address indexed keeper);
     event ChannelAdded(
@@ -217,7 +218,7 @@ contract FeeRouter is Ownable {
                     ISwapRouterV3.ExactInputSingleParams({
                         tokenIn: weth,
                         tokenOut: diem,
-                        fee: DIEM_FEE,
+                        fee: diemFee,
                         recipient: address(this),
                         amountIn: pendingW,
                         amountOutMinimum: 0,
@@ -238,7 +239,7 @@ contract FeeRouter is Ownable {
         if (pendingU > 0 && usdcMode != FeeMode.HOLD) {
             _pendingUSDC = 0;
             IERC20(USDC).approve(V3_ROUTER, pendingU);
-            bytes memory path = abi.encodePacked(USDC, USDC_WETH_FEE, weth, DIEM_FEE, diem);
+            bytes memory path = abi.encodePacked(USDC, usdcWethFee, weth, diemFee, diem);
             uint256 diemOut = ISwapRouterV3(V3_ROUTER)
                 .exactInput(
                     ISwapRouterV3.ExactInputParams({
@@ -367,6 +368,14 @@ contract FeeRouter is Ownable {
     function setWstDiemMode(FeeMode mode) external onlyOwner {
         wstDiemMode = mode;
         emit FeeModeChanged("wstDIEM", mode);
+    }
+
+    function setSwapFees(uint24 _diemFee, uint24 _usdcWethFee) external onlyOwner {
+        require(_diemFee > 0 && _diemFee <= 10_000, "invalid DIEM fee");
+        require(_usdcWethFee > 0 && _usdcWethFee <= 10_000, "invalid USDC/WETH fee");
+        diemFee = _diemFee;
+        usdcWethFee = _usdcWethFee;
+        emit SwapFeesSet(_diemFee, _usdcWethFee);
     }
 
     function setVVVBatchThreshold(uint256 amt) external onlyOwner {
