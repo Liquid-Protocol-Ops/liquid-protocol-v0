@@ -88,6 +88,9 @@ ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM i
 | Morpho wstDIEM/DIEM oracle (86%) | `0xB1B192fc0190bA15F4EC76BF6032123bc688F76D` |
 | Morpho wstDIEM/USDC oracle (62.5%) | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` |
 | Morpho wstDIEM/WETH oracle (62.5%) | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` |
+| AntSeedAdapter | `0xE9C2BE3ab25E97Ef4364c505202016106Bec6a6e` |
+| SurplusAdapter | `0xB67A86Ab50e30d7509eeD205Fc01A70758B227Db` |
+| X402Adapter | `0xC3C3CaC663f88304a38Cb9C4e9c02bB57DB00142` |
 | Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` |
 
 **Old vault (v4, 2026-06-01) — withdrawals enabled July 1 (MOG-520):**
