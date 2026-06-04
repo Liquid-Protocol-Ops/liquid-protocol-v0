@@ -421,7 +421,7 @@ Base Mainnet
 │   ├── DIEM token:            0xF4d97F2da56e8c3098f3a8D538DB630A2606a024
 │   ├── VVV token:             0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf
 │   ├── VVV staking (→sVVV):  0x321b7ff75154472B18EDb199033fF4D116F340Ff
-│   └── DIEM mint contract:   TBD (confirm from Venice docs before WP-3)
+│   └── DIEM mint contract:   `0x321b7ff75154472B18EDb199033fF4D116F340Ff` (VVV staking contract — `mintDiem(sVVVAmount, 0)` mints to caller, returns void)
 │
 ├── Liquid Protocol (this repo)
 │   ├── InferenceVault.sol          [WP-2]  DIEM asset, wstDIEM share

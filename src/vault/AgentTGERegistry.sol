@@ -18,23 +18,31 @@ contract AgentTGERegistry is IAgentTGERegistry, Ownable {
     error AlreadyRegistered();
     error TooSoonToMarkDormant();
 
+    event AgentRegistered(address indexed agent, Tier tier, uint256 dailyAllocationUSD);
+    event AgentTerminated(address indexed agent);
+    event AgentDormant(address indexed agent);
+    event FeeReceiptRecorded(address indexed agent, uint256 timestamp);
+
     constructor(address _feeRouter, address initialOwner) Ownable(initialOwner) {
         feeRouter = _feeRouter;
     }
 
     function register(address agent, Tier tier) external onlyOwner {
         if (_commitments[agent].active) revert AlreadyRegistered();
+        uint256 alloc = tierAllocations[uint8(tier)];
         _commitments[agent] = Commitment({
             agent: agent,
-            dailyAllocationUSD: tierAllocations[uint8(tier)],
+            dailyAllocationUSD: alloc,
             tier: tier,
             lastFeeReceiptAt: block.timestamp,
             active: true
         });
+        emit AgentRegistered(agent, tier, alloc);
     }
 
     function terminate() external {
         _commitments[msg.sender].active = false;
+        emit AgentTerminated(msg.sender);
     }
 
     function markDormant(address agent) external {
@@ -42,11 +50,13 @@ contract AgentTGERegistry is IAgentTGERegistry, Ownable {
         if (!c.active) revert NotRegistered();
         if (block.timestamp < c.lastFeeReceiptAt + DORMANCY_WINDOW) revert TooSoonToMarkDormant();
         c.active = false;
+        emit AgentDormant(agent);
     }
 
     function recordFeeReceipt(address agent) external {
         if (msg.sender != feeRouter) revert NotFeeRouter();
         _commitments[agent].lastFeeReceiptAt = block.timestamp;
+        emit FeeReceiptRecorded(agent, block.timestamp);
     }
 
     function getCommitment(address agent) external view returns (Commitment memory) {

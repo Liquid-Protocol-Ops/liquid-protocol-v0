@@ -20,7 +20,7 @@ contract PhaseCIntegrationTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
         address treasury = makeAddr("treasury");
-        vault = new InferenceVault(DIEM, treasury, address(this));
+        vault = new InferenceVault(DIEM, treasury, makeAddr("veniceSigner"), address(this));
 
         // Deploy Curve pool (two-arg prank for EOA guard)
         DeployCurvePool d = new DeployCurvePool(address(vault));
@@ -30,7 +30,7 @@ contract PhaseCIntegrationTest is Test {
         vm.stopPrank();
 
         feeRouter = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0));
-        vault.setFeeRouter(address(feeRouter));
+        vault.setVenueAdapter(address(feeRouter), true);
 
         // Seed Curve pool with initial liquidity so add_liquidity(one-sided) works
         deal(DIEM, seeder, 100_000e18);

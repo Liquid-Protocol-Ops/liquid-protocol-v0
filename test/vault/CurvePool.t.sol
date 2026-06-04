@@ -42,7 +42,7 @@ contract CurvePoolTest is Test {
 
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
-        vault = new InferenceVault(DIEM, treasury, address(this));
+        vault = new InferenceVault(DIEM, treasury, makeAddr("veniceSigner"), address(this));
 
         // Build pool deployment params.
         // asset_type 0 = standard ERC-20 (DIEM)
