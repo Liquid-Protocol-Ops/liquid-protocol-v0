@@ -121,20 +121,14 @@ contract ComputePresaleFactory {
         uint256 lockDuration,
         uint256 depositWindow
     ) external view returns (address predicted) {
+        bytes32 ns = effectiveSalt(deployer, salt);
         bytes32 initCodeHash = keccak256(
             _initCode(liquidFactory, depositToken, agentWallet, lockDuration, depositWindow)
         );
         predicted = address(
             uint160(
                 uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff),
-                            address(this),
-                            effectiveSalt(deployer, salt),
-                            initCodeHash
-                        )
-                    )
+                    keccak256(abi.encodePacked(bytes1(0xff), address(this), ns, initCodeHash))
                 )
             )
         );
