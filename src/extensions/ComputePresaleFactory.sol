@@ -125,13 +125,8 @@ contract ComputePresaleFactory {
         bytes32 initCodeHash = keccak256(
             _initCode(liquidFactory, depositToken, agentWallet, lockDuration, depositWindow)
         );
-        predicted = address(
-            uint160(
-                uint256(
-                    keccak256(abi.encodePacked(bytes1(0xff), address(this), ns, initCodeHash))
-                )
-            )
-        );
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), ns, initCodeHash));
+        predicted = address(uint160(uint256(hash)));
     }
 
     // ── Convenience: salt derivation ──────────────────────────────────────────
