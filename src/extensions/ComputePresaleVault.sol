@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {ILiquid} from "../interfaces/ILiquid.sol";
 import {ILiquidExtension} from "../interfaces/ILiquidExtension.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
@@ -26,6 +27,8 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 ///   included in extensionConfigs. The factory calls receiveTokens() during deployToken(),
 ///   which opens the deposit window.
 contract ComputePresaleVault is ReentrancyGuard, ILiquidExtension {
+    using SafeERC20 for IERC20;
+
     // ── Immutable config ───────────────────────────────────────────────────
 
     ILiquid public immutable factory;
@@ -62,6 +65,8 @@ contract ComputePresaleVault is ReentrancyGuard, ILiquidExtension {
     error NothingDeposited();
     error NoDepositsInVault();
     error WrongMode();
+    error DepositTokenCollision();
+    error NothingReceived();
 
     // ── Events ────────────────────────────────────────────────────────────
 
@@ -111,16 +116,25 @@ contract ComputePresaleVault is ReentrancyGuard, ILiquidExtension {
     ) external payable nonReentrant onlyFactory {
         if (initialized) revert AlreadyInitialized();
         if (msg.value != 0) revert InvalidMsgValue();
+        // The launched token and the deposit token must be distinct: they are tracked by
+        // separate accounting systems that both read this contract's balance. Sharing one
+        // balance would let finalizeVVV()/withdrawDepositToken() sweep the claim allocation.
+        if (token_ == address(depositToken)) revert DepositTokenCollision();
 
-        IERC20(token_).transferFrom(msg.sender, address(this), extensionSupply);
+        // Credit the balance actually received rather than the requested amount, so a
+        // fee-on-transfer / rebasing launched token cannot leave claims under-collateralized.
+        uint256 balanceBefore = IERC20(token_).balanceOf(address(this));
+        IERC20(token_).safeTransferFrom(msg.sender, address(this), extensionSupply);
+        uint256 received = IERC20(token_).balanceOf(address(this)) - balanceBefore;
+        if (received == 0) revert NothingReceived();
 
         token = token_;
-        totalTokenSupply = extensionSupply;
+        totalTokenSupply = received;
         depositDeadline = block.timestamp + depositWindow;
         lockExpiry = depositDeadline + lockDuration;
         initialized = true;
 
-        emit VaultInitialized(token_, extensionSupply, depositDeadline);
+        emit VaultInitialized(token_, received, depositDeadline);
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
@@ -133,11 +147,17 @@ contract ComputePresaleVault is ReentrancyGuard, ILiquidExtension {
     function deposit(uint256 amount) external nonReentrant onlyInitialized {
         if (block.timestamp >= depositDeadline) revert DepositWindowClosed();
 
-        depositToken.transferFrom(msg.sender, address(this), amount);
-        deposited[msg.sender] += amount;
-        totalDeposited += amount;
+        // Credit the measured balance delta, not the requested amount, so a fee-on-transfer
+        // or rebasing depositToken cannot inflate accounting and render withdrawals insolvent.
+        uint256 balanceBefore = depositToken.balanceOf(address(this));
+        depositToken.safeTransferFrom(msg.sender, address(this), amount);
+        uint256 received = depositToken.balanceOf(address(this)) - balanceBefore;
+        if (received == 0) revert NothingReceived();
 
-        emit Deposited(msg.sender, amount, totalDeposited);
+        deposited[msg.sender] += received;
+        totalDeposited += received;
+
+        emit Deposited(msg.sender, received, totalDeposited);
     }
 
     // ── Claim tokens ──────────────────────────────────────────────────────
@@ -154,7 +174,7 @@ contract ComputePresaleVault is ReentrancyGuard, ILiquidExtension {
 
         // Integer division rounds down; dust accumulates in contract over many claimants.
         uint256 tokenAmount = deposited[msg.sender] * totalTokenSupply / totalDeposited;
-        IERC20(token).transfer(msg.sender, tokenAmount);
+        IERC20(token).safeTransfer(msg.sender, tokenAmount);
 
         emit TokensClaimed(msg.sender, tokenAmount);
     }
@@ -170,7 +190,7 @@ contract ComputePresaleVault is ReentrancyGuard, ILiquidExtension {
 
         depositTokenWithdrawn[msg.sender] = true;
 
-        depositToken.transfer(msg.sender, deposited[msg.sender]);
+        depositToken.safeTransfer(msg.sender, deposited[msg.sender]);
 
         emit DepositTokenWithdrawn(msg.sender, deposited[msg.sender]);
     }
@@ -180,13 +200,13 @@ contract ComputePresaleVault is ReentrancyGuard, ILiquidExtension {
     /// @notice Transfer accumulated VVV to agentWallet. VVV irrevocable mode only.
     ///         Callable by anyone after depositDeadline; safe to call multiple times
     ///         (no-op if balance is already zero).
-    function finalizeVVV() external onlyInitialized {
+    function finalizeVVV() external nonReentrant onlyInitialized {
         if (lockDuration != 0) revert WrongMode();
         if (block.timestamp < depositDeadline) revert DepositWindowStillOpen();
 
         uint256 balance = depositToken.balanceOf(address(this));
         if (balance > 0) {
-            depositToken.transfer(agentWallet, balance);
+            depositToken.safeTransfer(agentWallet, balance);
             emit VVVFinalized(agentWallet, balance);
         }
     }
