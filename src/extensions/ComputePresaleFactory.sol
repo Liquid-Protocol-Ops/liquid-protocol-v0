@@ -77,7 +77,9 @@ contract ComputePresaleFactory {
         uint256 lockDuration,
         uint256 depositWindow
     ) external returns (address vault) {
-        if (liquidFactory == address(0) || depositToken == address(0)) revert ZeroAddress();
+        if (liquidFactory == address(0) || depositToken == address(0)) {
+            revert ZeroAddress();
+        }
 
         bytes32 namespacedSalt = effectiveSalt(msg.sender, salt);
         if (vaultAt[namespacedSalt] != address(0)) revert SaltAlreadyUsed();

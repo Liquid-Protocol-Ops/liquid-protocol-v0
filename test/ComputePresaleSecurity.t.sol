@@ -161,9 +161,7 @@ contract ComputePresaleSecurityTest is Test {
         // Books now match the real (net) balance held by the vault.
         assertEq(vault.totalDeposited(), 2 * net, "credits measured delta, not requested");
         assertEq(vault.deposited(depositor1), net);
-        assertEq(
-            depositToken.balanceOf(address(vault)), vault.totalDeposited(), "vault is solvent"
-        );
+        assertEq(depositToken.balanceOf(address(vault)), vault.totalDeposited(), "vault is solvent");
 
         vm.warp(vault.lockExpiry() + 1);
 
