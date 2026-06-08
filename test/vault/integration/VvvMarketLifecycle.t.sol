@@ -38,6 +38,38 @@ interface IMorpho {
         external
         view
         returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral);
+    function market(bytes32 id)
+        external
+        view
+        returns (
+            uint128 totalSupplyAssets,
+            uint128 totalSupplyShares,
+            uint128 totalBorrowAssets,
+            uint128 totalBorrowShares,
+            uint128 lastUpdate,
+            uint128 fee
+        );
+    function accrueInterest(MarketParams memory m) external;
+    function liquidate(
+        MarketParams memory m,
+        address borrower,
+        uint256 seizedAssets,
+        uint256 repaidShares,
+        bytes memory data
+    ) external returns (uint256, uint256);
+}
+
+interface ICurve {
+    // DIEM/wstDIEM StableSwap: coin0 = DIEM, coin1 = wstDIEM
+    function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external returns (uint256);
+    function add_liquidity(uint256[] calldata amounts, uint256 min_mint_amount)
+        external
+        returns (uint256);
+}
+
+interface IAeroSwap {
+    function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256);
+    function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external;
 }
 
 interface IVVVStaking {
@@ -65,6 +97,7 @@ contract VvvMarketLifecycleTest is Test {
     address constant MORPHO = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
     address constant IRM = 0x46415998764C29aB2a25CbeA6254146D50D22687;
     uint256 constant LLTV = 625e15; // 62.5%
+    address constant CURVE = 0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2; // DIEM/wstDIEM StableSwap
 
     MarketParams mp;
     bytes32 marketId;
@@ -149,6 +182,96 @@ contract VvvMarketLifecycleTest is Test {
         console.log("borrowed VVV (80%):", borrowed / 1e18);
         (,, uint128 posCollat) = morpho.position(marketId, borrower);
         assertEq(posCollat, collat, "collateral recorded");
+    }
+
+    /// Keystone: the full liquidation lifecycle + unwind that GATES the live market.
+    /// underwater (via interest) → Morpho liquidate (seize wstDIEM) → unwind the seized
+    /// collateral back to VVV: wstDIEM → DIEM (Curve) → VVV (Aerodrome).
+    /// NOTE: Curve is seeded with deal'd tokens here — this proves the unwind ROUTING,
+    /// NOT that real on-chain depth exists (live Curve is empty; that's a mainnet check).
+    function test_liquidation_unwind() public {
+        IMorpho morpho = IMorpho(MORPHO);
+
+        // 1. Seed the (empty) live Curve DIEM/wstDIEM pool so the unwind hop has depth.
+        address seeder = makeAddr("seeder");
+        deal(DIEM, seeder, 2000e18);
+        vm.startPrank(seeder);
+        IERC20(DIEM).approve(WSTDIEM, type(uint256).max);
+        uint256 seedShares = IVault(WSTDIEM).deposit(1000e18, seeder);
+        IERC20(DIEM).approve(CURVE, type(uint256).max);
+        IERC20(WSTDIEM).approve(CURVE, type(uint256).max);
+        uint256[] memory amts = new uint256[](2);
+        amts[0] = 1000e18; // DIEM (coin0)
+        amts[1] = seedShares; // wstDIEM (coin1)
+        ICurve(CURVE).add_liquidity(amts, 0);
+        vm.stopPrank();
+
+        // 2. Borrower opens a near-max position (collateral = real wstDIEM).
+        deal(DIEM, borrower, 100e18);
+        vm.startPrank(borrower);
+        IERC20(DIEM).approve(WSTDIEM, type(uint256).max);
+        uint256 collat = IVault(WSTDIEM).deposit(100e18, borrower);
+        vm.stopPrank();
+
+        uint256 maxBorrow = uint256(collat) * _oraclePrice() / 1e36 * LLTV / 1e18;
+        uint256 borrowAmt = maxBorrow * 99 / 100;
+
+        // Lender supplies just above the borrow → high utilization → fast interest.
+        address lender2 = makeAddr("lender2");
+        uint256 supplyAmt = borrowAmt * 103 / 100;
+        deal(VVV, lender2, supplyAmt);
+        vm.startPrank(lender2);
+        IERC20(VVV).approve(MORPHO, type(uint256).max);
+        morpho.supply(mp, supplyAmt, 0, lender2, "");
+        vm.stopPrank();
+
+        vm.startPrank(borrower);
+        IERC20(WSTDIEM).approve(MORPHO, type(uint256).max);
+        morpho.supplyCollateral(mp, collat, borrower, "");
+        morpho.borrow(mp, borrowAmt, 0, borrower, borrower);
+        vm.stopPrank();
+
+        // 3. Accrue interest → debt grows past collateral × LLTV.
+        vm.warp(block.timestamp + 120 days);
+        morpho.accrueInterest(mp);
+
+        (, uint128 borrowShares,) = morpho.position(marketId, borrower);
+        (,, uint128 totBorrowAssets, uint128 totBorrowShares,,) = morpho.market(marketId);
+        uint256 debt = uint256(borrowShares) * totBorrowAssets / totBorrowShares;
+        assertGt(debt, maxBorrow, "position should be underwater after interest accrual");
+        console.log("debt VVV        :", debt / 1e18);
+        console.log("maxBorrow VVV   :", maxBorrow / 1e18);
+
+        // 4. Liquidate: seize half the collateral, repaying VVV debt.
+        address liquidator = makeAddr("liquidator");
+        deal(VVV, liquidator, debt);
+        uint256 vvvStart = IERC20(VVV).balanceOf(liquidator);
+        vm.startPrank(liquidator);
+        IERC20(VVV).approve(MORPHO, type(uint256).max);
+        (uint256 seized, uint256 repaid) =
+            morpho.liquidate(mp, borrower, uint256(collat) / 2, 0, "");
+        vm.stopPrank();
+        assertEq(IERC20(WSTDIEM).balanceOf(liquidator), seized, "liquidator holds seized wstDIEM");
+        console.log("seized wstDIEM  :", seized / 1e18);
+        console.log("repaid VVV      :", repaid / 1e18);
+
+        // 5. Unwind seized wstDIEM → DIEM (Curve) → VVV (Aerodrome).
+        vm.startPrank(liquidator);
+        IERC20(WSTDIEM).approve(CURVE, type(uint256).max);
+        uint256 diemOut = ICurve(CURVE).exchange(1, 0, seized, 0); // wstDIEM(1) → DIEM(0)
+        assertGt(diemOut, 0, "Curve wstDIEM->DIEM yielded nothing");
+
+        uint256 vvvOut = IAeroSwap(AERO_POOL).getAmountOut(diemOut, DIEM);
+        IERC20(DIEM).transfer(AERO_POOL, diemOut);
+        IAeroSwap(AERO_POOL).swap(vvvOut, 0, liquidator, ""); // token0 = VVV out
+        vm.stopPrank();
+
+        uint256 vvvEnd = IERC20(VVV).balanceOf(liquidator);
+        assertGt(vvvOut, 0, "Aerodrome DIEM->VVV yielded nothing");
+        assertGt(vvvEnd, vvvStart - repaid, "unwind must return VVV to the liquidator");
+        console.log("DIEM from Curve :", diemOut / 1e18);
+        console.log("VVV from unwind :", vvvOut / 1e18);
+        console.log("liquidator net VVV (end - start):", int256(vvvEnd) - int256(vvvStart));
     }
 
     function _oraclePrice() internal view returns (uint256) {
