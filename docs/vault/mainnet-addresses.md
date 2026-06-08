@@ -1,6 +1,6 @@
 # wstDIEM Liquid Inference Vault — Base Mainnet Addresses
 
-**Last updated:** 2026-06-03 (v5)
+**Last updated:** 2026-06-05 (v5 + v6 deployer + wstDIEM/VVV Morpho market, MOG-544)
 **Chain:** Base mainnet (chain 8453)
 **Owner (Safe):** `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
 
@@ -33,6 +33,9 @@
 | wstDIEM/USDC | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` | 62.5% | [view](https://basescan.org/address/0x7f3eab9863d4f5a1d34d89f7b802c0ea2469b51a) |
 | wstDIEM/WETH | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` | 62.5% | [view](https://basescan.org/address/0x73fddccbb524b04b43eded9c4d20c061de291f07) |
 | wstDIEM/DIEM (77% LLTV) | `0xE762e8011D453853638D1978398df8b1D383A2D9` | 77% | — |
+| wstDIEM/VVV (on-chain TWAP, MOG-544) | `0xC76e2fe5176B432035Def5362023a8DF36bEE94E` | 62.5% | [view](https://basescan.org/address/0xc76e2fe5176b432035def5362023a8df36bee94e) |
+
+**wstDIEM/VVV market** (created 2026-06-05, deployer v6): ID `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8` — collateral wstDIEM, loan **liquid VVV** `0xacfE6019…`, oracle `0xC76e2fe5…`, IRM `0x46415998…`. Oracle is fully on-chain (`vault rate × Aerodrome DIEM→VVV TWAP`, granularity 2 ≈ ~1h); immutable. **Unseeded — do NOT supply borrowable VVV / open borrows until the liquidation path (wstDIEM→DIEM via Curve→VVV via Aerodrome) has depth (MOG-536); size caps to the ~$6M Aerodrome v2 pool.**
 
 ## Liquidity Pools (v5)
 
@@ -46,7 +49,9 @@
 | Protocol | Address | Used for |
 |----------|---------|---------|
 | DIEM token | `0xF4d97F2da56e8c3098f3a8D538DB630A2606a024` | Vault asset; built-in `stake()`/`unstake()` |
-| VVV staking (sVVV) | `0x321b7ff75154472B18EDb199033fF4D116F340Ff` | `depositVVV` Router path |
+| VVV token (liquid ERC-20) | `0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf` | `depositVVV` input; wstDIEM/VVV Morpho loan token; Aerodrome DIEM/VVV pair. **Use this as `vvv` — not sVVV.** |
+| VVV staking → sVVV (non-transferrable) | `0x321b7ff75154472B18EDb199033fF4D116F340Ff` | `stake()` → sVVV → `mintDiem()` → DIEM. Cannot be a Morpho loan token / oracle pool token. |
+| Aerodrome DIEM/VVV pool (volatile v2) | `0xbB345D35450BF9Ee76F3D2cE214E8e7AC5e1071d` | `quote(DIEM,1e18,n)` TWAP source for `WstDiemVvvOracle` (~$6M; token0=VVV, token1=DIEM) |
 | Uniswap V3 SwapRouter02 | `0x2626664c2603336E57B271c5C0b26F421741e481` | WETH/USDC→DIEM swaps |
 | Uniswap V4 PoolManager | `0x498581fF718922c3f8e6A244956aF099B2652b2b` | WETH/wstDIEM pool |
 | Morpho Blue | `0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb` | Leverage markets |
@@ -57,11 +62,20 @@
 | Role | Address | 1Password |
 |------|---------|---------|
 | Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | SK1: `liq-safe-signer-1` (mog.capital), SK2: `liq-safe-signer-2` (Personal) |
-| Deployer v5 | `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` | `el4qwixmdot757dpxcqgfo43qe` (mog.capital) |
+| Deployer v6 | `0xf04822e5B0E76A34aeeA936c79B4439f794b8Be1` | `op://Personal/wstDIEM v6 Deployer EOA/credential` (item `rhuh6s2tocpjzdi7kvvnjrps7i`) |
+| Deployer v5 (legacy) | `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` | `el4qwixmdot757dpxcqgfo43qe` (mog.capital) |
+| Keeper EOA | `0x988CE72d127b8A06821BBb3708897dBdc0D66f2f` | `~/.splits/config.json` key.privateKey |
 | veniceSigner | `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` | Same as deployer v5 — rotate to Privy wallet before production |
 
-## Old Vault (v4 — withdrawals pending July 1)
+## Splits Funding Accounts (Base mainnet)
+
+| Account | Address | Purpose |
+|---------|---------|---------|
+| wstdiem-deployer | `0xf4DB2a7B6902924EFCd8270d23B205969EfF3316` | Deployment gas budget — proposes ETH to deployer v6 EOA |
+| wstdiem-keeper | `0x102368E997ced4b94d093813B3c1F5fB1F15f4B1` | Keeper gas budget — funds `0x988C…6f2f` |
+
+## Old Vault (v4 — withdrawals pending June 18)
 
 | Contract | Address | Status |
 |----------|---------|--------|
-| InferenceVault v4 | `0x4751BA2b09374C1929FC01734a166e3c8cd75810` | Withdrawals unlock 2026-07-01 03:32 UTC (MOG-520) |
+| InferenceVault v4 | `0x4751BA2b09374C1929FC01734a166e3c8cd75810` | `initiateEnableWithdrawals()` called 2026-06-04; enable on 2026-06-18 (MOG-520) |
