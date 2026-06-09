@@ -65,6 +65,7 @@ enum LeverageAction {
 }
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -103,6 +104,8 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     // V4 wstDIEM/WETH pool fee tier and tick spacing. Owner-updatable (must be set together).
     uint24 public wstDiemV4Fee = 3000;
     int24 public wstDiemV4TickSpacing = 60;
+    // V4 wstDIEM/WETH pool hook address. address(0) = no hook. Owner-updatable.
+    address public wstDiemV4Hooks;
     uint160 constant MIN_SQRT_PRICE_PLUS_1 = 4_295_128_740; // TickMath.MIN_SQRT_PRICE + 1
     uint160 constant MAX_SQRT_PRICE_MINUS_1 =
         1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_341;
@@ -142,7 +145,9 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
         address indexed caller, uint256 diemIn, uint256 flashAmount, uint256 totalWst
     );
     event UnloopDeposit(address indexed caller, uint256 wstAmount, uint256 netDiem);
-    event SwapFeesSet(uint24 diemV3Fee, uint24 wstDiemV4Fee, int24 wstDiemV4TickSpacing);
+    event SwapFeesSet(
+        uint24 diemV3Fee, uint24 wstDiemV4Fee, int24 wstDiemV4TickSpacing, address wstDiemV4Hooks
+    );
 
     /// @param _morpho Morpho Blue address. Pass address(0) to use the Base mainnet
     ///                default (0xBBBBBbbBBb...). Explicit injection enables unit tests
@@ -222,7 +227,7 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
             currency1: Currency.wrap(c1),
             fee: wstDiemV4Fee,
             tickSpacing: wstDiemV4TickSpacing,
-            hooks: IHooks(address(0))
+            hooks: IHooks(wstDiemV4Hooks)
         });
 
         // Selling wstDIEM for WETH:
@@ -422,17 +427,24 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
         IERC20(diem).safeTransfer(caller, netDiem);
     }
 
-    function setSwapFees(uint24 _diemV3Fee, uint24 _wstDiemV4Fee, int24 _wstDiemV4TickSpacing)
-        external
-        onlyOwner
-    {
+    function setSwapFees(
+        uint24 _diemV3Fee,
+        uint24 _wstDiemV4Fee,
+        int24 _wstDiemV4TickSpacing,
+        address _wstDiemV4Hooks
+    ) external onlyOwner {
         require(_diemV3Fee > 0 && _diemV3Fee <= 10_000, "invalid DIEM V3 fee");
-        require(_wstDiemV4Fee > 0 && _wstDiemV4Fee <= 10_000, "invalid V4 fee");
+        bool isDynamic = _wstDiemV4Fee == LPFeeLibrary.DYNAMIC_FEE_FLAG;
+        require(
+            (_wstDiemV4Fee > 0 && _wstDiemV4Fee <= LPFeeLibrary.MAX_LP_FEE) || isDynamic,
+            "invalid V4 fee"
+        );
         require(_wstDiemV4TickSpacing > 0, "invalid tick spacing");
         diemV3Fee = _diemV3Fee;
         wstDiemV4Fee = _wstDiemV4Fee;
         wstDiemV4TickSpacing = _wstDiemV4TickSpacing;
-        emit SwapFeesSet(_diemV3Fee, _wstDiemV4Fee, _wstDiemV4TickSpacing);
+        wstDiemV4Hooks = _wstDiemV4Hooks;
+        emit SwapFeesSet(_diemV3Fee, _wstDiemV4Fee, _wstDiemV4TickSpacing, _wstDiemV4Hooks);
     }
 
     function setLeverageMarket(MarketParams calldata params) external onlyOwner {
