@@ -783,24 +783,54 @@ git commit -m "feat(script): CREATE2 salt-mined WstDIEMHook deploy (MOG-548)"
 
 ---
 
-## Task 6: Pool init script (operator-supplied, validated sqrtPriceX96)
+## Task 6: Pool init script (on-chain-anchored price guard)
+
+The bug behind MOG-548 was a mis-set V4 price. A guard where the operator supplies *both* the price and the band that checks it is weak — a shared fat-finger passes. So this script derives an **expected** tick from on-chain reads (vault rate × Aerodrome DIEM/VVV TWAP × Chainlink ETH/USD) plus a **single** operator input (VVV/USD, the one leg with no on-chain feed), and requires the operator's supplied `SQRT_PRICE_X96` to land within `TOLERANCE_TICKS` of it. The operator's sqrtPrice (from their own off-chain tooling) is cross-checked against an independent on-chain path.
+
+Price math (WETH = currency0, wstDIEM = currency1 ⇒ pool price = wstDIEM per WETH):
+```
+A = convertToAssets(1e18)        DIEM per wstDIEM   (1e18-scaled, on-chain)
+Q = aero.quote(DIEM, 1e18, 2)    VVV  per DIEM      (1e18-scaled, on-chain TWAP)
+E = chainlink ETH/USD            USD  per WETH      (1e8-scaled, on-chain)
+V = VVV_USD_E8 (operator)        USD  per VVV       (1e8-scaled)
+
+price (wstDIEM/WETH) = WETH_USD / wstDIEM_USD = (E/1e8) / (A·Q·V / 1e44)
+priceX192 = price · 2^192 = mulDiv(E · 1e36, 2^192, A·Q·V)   // 512-bit mulDiv, no overflow
+expectedSqrtX96 = sqrt(priceX192)                            // OZ Math.sqrt
+expectedTick = getTickAtSqrtPrice(expectedSqrtX96)
+```
 
 **Files:**
 - Create: `script/vault/InitV4Pool.s.sol`
 
 - [ ] **Step 1: Write the init script**
 
-The operator computes `SQRT_PRICE_X96` off-chain (ETH/USD × DIEM/VVV × vault rate) and supplies it. The script reads `convertToAssets(1e18)`, derives the implied tick, validates it against an operator-provided sanity band, logs everything, and only initializes inside `--broadcast`.
-
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {FullMath} from "@uniswap/v4-core/src/libraries/FullMath.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Script, console} from "forge-std/Script.sol";
 
 interface IVaultRate {
     function convertToAssets(uint256 shares) external view returns (uint256);
+    function asset() external view returns (address); // DIEM
+}
+
+interface IAeroPool {
+    function quote(address tokenIn, uint256 amountIn, uint256 granularity)
+        external view returns (uint256);
+}
+
+interface IChainlink {
+    function latestRoundData()
+        external view returns (uint80, int256, uint256, uint256, uint80);
+}
+
+interface IWethOracle {
+    function ethUsdFeed() external view returns (address); // canonical Base ETH/USD feed
 }
 
 interface IPMInit {
@@ -818,21 +848,46 @@ contract InitV4Pool is Script {
     address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant WSTDIEM = 0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D; // v5
+    address constant AERO_DIEM_VVV = 0xbB345D35450BF9Ee76F3D2cE214E8e7AC5e1071d;
+    // Reuse the (deprecated) WETH oracle purely as an on-chain source of the canonical
+    // Chainlink ETH/USD feed address — its immutable is still correct.
+    address constant WETH_ORACLE = 0x73FddCCBB524b04b43EdED9C4d20C061DE291F07;
     uint24 constant DYNAMIC_FEE = 0x800000;
     int24 constant TICK_SPACING = 60;
+    int24 constant TOLERANCE_TICKS = 300; // ~3% price tolerance
 
     function run() external {
         address hook = vm.envAddress("WSTDIEM_HOOK");
         uint160 sqrtPriceX96 = uint160(vm.envUint("SQRT_PRICE_X96"));
-        int24 minTick = int24(vm.envInt("MIN_TICK")); // operator sanity band
-        int24 maxTick = int24(vm.envInt("MAX_TICK"));
+        uint256 vvvUsdE8 = vm.envUint("VVV_USD_E8"); // single operator price input, 1e8-scaled
 
-        uint256 rate = IVaultRate(WSTDIEM).convertToAssets(1e18);
+        // On-chain reads
+        address diem = IVaultRate(WSTDIEM).asset();
+        uint256 a = IVaultRate(WSTDIEM).convertToAssets(1e18);        // DIEM/wstDIEM, 1e18
+        uint256 q = IAeroPool(AERO_DIEM_VVV).quote(diem, 1e18, 2);    // VVV/DIEM, 1e18
+        (, int256 ans,,,) = IChainlink(IWethOracle(WETH_ORACLE).ethUsdFeed()).latestRoundData();
+        require(ans > 0, "bad ETH/USD");
+        uint256 e = uint256(ans);                                     // USD/WETH, 1e8
+
+        // expectedTick from independent on-chain path
+        uint256 denom = a * q * vvvUsdE8;                             // 1e18·1e18·1e8 = 1e44 scale
+        require(denom > 0, "zero denom");
+        uint256 priceX192 = FullMath.mulDiv(e * 1e36, uint256(1) << 192, denom);
+        uint160 expectedSqrt = uint160(Math.sqrt(priceX192));
+        int24 expectedTick = TickMath.getTickAtSqrtPrice(expectedSqrt);
         int24 impliedTick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
-        console.log("vault convertToAssets(1e18) [DIEM/wstDIEM]:", rate);
-        console.log("supplied sqrtPriceX96:", uint256(sqrtPriceX96));
+
+        console.log("convertToAssets(1e18):", a);
+        console.log("VVV/DIEM (1e18):", q);
+        console.log("ETH/USD (1e8):", e);
+        console.log("VVV/USD (1e8, operator):", vvvUsdE8);
+        console.log("expected tick:");
+        console.logInt(expectedTick);
+        console.log("implied tick (supplied):");
         console.logInt(impliedTick);
-        require(impliedTick >= minTick && impliedTick <= maxTick, "implied tick outside sanity band");
+
+        int24 diff = impliedTick > expectedTick ? impliedTick - expectedTick : expectedTick - impliedTick;
+        require(diff <= TOLERANCE_TICKS, "supplied price deviates from on-chain anchor");
 
         (address c0, address c1) = WETH < WSTDIEM ? (WETH, WSTDIEM) : (WSTDIEM, WETH);
         IPMInit.PoolKey memory key = IPMInit.PoolKey({
@@ -848,23 +903,23 @@ contract InitV4Pool is Script {
 }
 ```
 
-- [ ] **Step 2: Dry-run on a fork to validate the tick-band guard reverts**
+- [ ] **Step 2: Dry-run on a fork — confirm the anchor computes and the guard rejects a bad price**
 
-The `require` band check runs *before* `initialize`. Use a band that REJECTS the implied tick (tick 0 for sqrtPrice = 2^96) so the script reverts at the guard, proving it works — without reaching `initialize` (which would fail anyway against a placeholder hook with no code):
+Run with a deliberately wrong `SQRT_PRICE_X96` (the old broken value, tick ~75,981) so the guard rejects it against the on-chain anchor. The `require` runs before `vm.startBroadcast`, so the script reverts at the guard without reaching `initialize`:
 ```bash
 WSTDIEM_HOOK=0x0000000000000000000000000000000000001080 \
-SQRT_PRICE_X96=79228162514264337593543950336 MIN_TICK=100 MAX_TICK=200 \
+SQRT_PRICE_X96=3543191142285914205922034323214 VVV_USD_E8=1500000000 \
 DEPLOYER_PK=0x0000000000000000000000000000000000000000000000000000000000000001 \
 BASE_RPC_URL=<url> ~/.foundry/bin/forge script script/vault/InitV4Pool.s.sol --rpc-url $BASE_RPC_URL
 ```
-Expected: logs `convertToAssets`, supplied sqrtPrice, implied tick `0`, then **reverts** `implied tick outside sanity band` (0 ∉ [100,200]). This confirms the guard fires before any broadcast. The real run (Task 9) uses the mined hook + real sqrtPrice + a band containing the true tick, and reaches `initialize`.
+Expected: logs the four on-chain/operator inputs, an `expected tick` in the low thousands, an `implied tick` ≈ 75,981, then **reverts** `supplied price deviates from on-chain anchor`. This proves the anchor is computed from chain state and catches a mispriced input. (If the Aerodrome `quote` reverts for insufficient observations, fall back to passing `Q` via env — but the live pool has ~9000 observations, so it should succeed.)
 
 - [ ] **Step 3: Commit**
 
 ```bash
 ~/.foundry/bin/forge fmt
 git add script/vault/InitV4Pool.s.sol
-git commit -m "feat(script): InitV4Pool with operator sqrtPrice + tick sanity guard (MOG-548)"
+git commit -m "feat(script): InitV4Pool with on-chain-anchored price guard (MOG-548)"
 ```
 
 ---
@@ -1004,7 +1059,9 @@ Same block above `contract WstDiemWethOracle {` (adjust the first sentence: "...
 
 On the wstDIEM/USDC (line ~33) and wstDIEM/WETH (line ~34) rows, append to the LLTV cell or add a status: change `62.5%` → `62.5% — DEPRECATED (MOG-542, unseeded, do not use)`. Add a note below the table:
 ```markdown
-> **wstDIEM/USDC and wstDIEM/WETH markets are DEPRECATED** (MOG-542/549): their oracles hardcode DIEM=$1, which is wrong. They are unseeded and must not be supplied to or borrowed from. The wstDIEM/VVV market (fully on-chain oracle) is the canonical lending venue.
+> **wstDIEM/USDC and wstDIEM/WETH markets are DEPRECATED** (MOG-542/549): their oracles price wstDIEM collateral with a hardcoded DIEM=$1, which is wrong (DIEM ≈ $1,450). They are unseeded and must not be supplied to or borrowed from. The wstDIEM/VVV market (fully on-chain oracle) is the canonical lending venue.
+>
+> **MOG-549 sweep result:** "$1" appears in two roles. As an *inference entitlement* ($1/DIEM/day — `AgentTGERegistry` tier allocations, `InferenceProduct` capacity) it is CORRECT (Venice's real mechanic; sale price is a separate owner param `pricePerDiemDayUSDC=0.8e6`). As a *collateral market price* it is WRONG — but only the two oracles above + the V4 pool init (MOG-548) used it that way. `FeeRouter`/adapters/`Router` convert at market (`amountOutMinimum:0`), carrying no $1 assumption. Full checklist in the design spec.
 ```
 
 - [ ] **Step 3: Update the root `CLAUDE.md` oracle table**
@@ -1061,15 +1118,15 @@ DEPLOYER_PK="$PK" BASE_RPC_URL=<url> ~/.foundry/bin/forge script script/vault/De
 ```
 Record the deployed hook address → `export WSTDIEM_HOOK=0x...`
 
-- [ ] **Step 3: Compute sqrtPriceX96 off-chain** — WETH_USD / (convertToAssets(1e18)/1e18 × DIEM_VVV_rate × VVV_USD). Pick a `MIN_TICK`/`MAX_TICK` band ±~500 ticks around the target. Document the inputs in the deploy log.
+- [ ] **Step 3: Compute sqrtPriceX96 off-chain** — using your trusted tooling (e.g. Uniswap SDK): price = wstDIEM-per-WETH = WETH_USD / (convertToAssets(1e18)/1e18 × DIEM_VVV_rate × VVV_USD); `sqrtPriceX96 = sqrt(price)·2^96`. Note the current VVV/USD spot (8-dec, e.g. `1530000000` for $15.30) for `VVV_USD_E8`. The script re-derives an on-chain anchor and rejects if your sqrtPrice is >300 ticks (~3%) off it, so both must agree.
 
 - [ ] **Step 4: Initialize the pool**
 ```bash
-WSTDIEM_HOOK=0x... SQRT_PRICE_X96=<computed> MIN_TICK=<lo> MAX_TICK=<hi> \
+WSTDIEM_HOOK=0x... SQRT_PRICE_X96=<computed> VVV_USD_E8=<vvv-usd-8dec> \
 DEPLOYER_PK="$PK" BASE_RPC_URL=<url> ~/.foundry/bin/forge script script/vault/InitV4Pool.s.sol \
   --rpc-url $BASE_RPC_URL --private-key "$PK" --broadcast
 ```
-Verify on Basescan: `extsload` slot0 tick matches the implied tick logged.
+Confirm logged `expected tick` ≈ `implied tick` before it broadcasts. Verify on Basescan post-init: slot0 tick matches the implied tick logged.
 
 ## Task 10: Redeploy Router + Safe config
 

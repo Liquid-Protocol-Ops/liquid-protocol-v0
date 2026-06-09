@@ -218,14 +218,23 @@ Add `@custom:deprecated` to `WstDiemUsdcOracle` and `WstDiemWethOracle`:
 ### B3. Linear
 
 - MOG-542: close with comment "USDC/WETH oracle path abandoned — VVV market (MOG-544) is canonical. Marked @deprecated in source."
-- MOG-549: close with audit sweep checklist:
-  - [x] WstDiemUsdcOracle — deprecated, unseeded
-  - [x] WstDiemWethOracle — deprecated, unseeded  
-  - [x] V4 pool — fixed (new pool, MOG-548)
-  - [x] wstDIEM/DIEM Morpho markets (86%/77%) — unaffected (oracle uses convertToAssets ratio, no USD)
-  - [x] wstDIEM/VVV Morpho market — unaffected (fully on-chain, no USD)
-  - [x] FeeRouter, adapters, Router — no USD price assumptions
-  - [x] UI/SDK — no deployed UI yet
+- MOG-549: close with the audit-sweep result below. **The sweep distinguishes two roles of "$1" and only the second is a bug:**
+  - **(A) Inference-entitlement accounting — `$1/DIEM/day` is CORRECT** (Venice's real perpetuity mechanic, not a market price):
+    - `AgentTGERegistry` — `tierAllocations = [500e6, 2000e6, 5000e6]` USD/day entitlements; no DIEM↔USD market conversion. Legitimate.
+    - `InferenceProduct` — `diemAmount` capacity = DIEM-days; sale price is owner-set `pricePerDiemDayUSDC = 0.8e6` ($0.80, deliberately ≠ $1). No collateral-price assumption.
+  - **(B) Collateral market price — `DIEM = $1` is WRONG** (the actual bugs):
+    - [x] `WstDiemUsdcOracle` — deprecated, unseeded (MOG-542)
+    - [x] `WstDiemWethOracle` — deprecated, unseeded (MOG-542)
+    - [x] V4 wstDIEM/WETH pool init — fixed via new pool (MOG-548)
+  - **(C) Verified clean — convert at market, no `$1` term:**
+    - [x] `FeeRouter._harvest` (WETH & USDC→DIEM) — `amountOutMinimum: 0`, market swap
+    - [x] `BaseInferenceAdapter.routeYield` (USDC→WETH→DIEM) — `amountOutMinimum: 0`, market swap
+    - [x] `Router` — swaps with caller `minOut`; no USD term
+  - **(D) Unaffected by design:**
+    - [x] wstDIEM/DIEM Morpho markets (86%/77%) — oracle = `convertToAssets` ratio, no USD
+    - [x] wstDIEM/VVV Morpho market — fully on-chain TWAP, no USD
+    - [x] UI/SDK — no deployed vault UI yet
+  - **Note:** the minOut=0 swaps in (C) carry sandwich risk (a separate, pre-existing keeper-timing concern), not a $1 assumption — out of scope for MOG-549.
 
 ---
 
