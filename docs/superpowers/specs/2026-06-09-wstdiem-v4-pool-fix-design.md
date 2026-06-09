@@ -79,20 +79,50 @@ Deployed from deployer v6 EOA (`0xf04822e5B0E76A34aeeA936c79B4439f794b8Be1`).
 
 **File:** `src/vault/Router.sol`
 
-**Change:** `setSwapFees` validation currently rejects `fee > 10_000`. `DYNAMIC_FEE_FLAG = 0x800000 = 8,388,608` exceeds this. Update validation to also allow the dynamic fee flag:
+**Two changes** (both required for routing `exitToWETH` through a dynamic-fee *hooked* pool):
+
+**(1) Allow the dynamic fee flag.** `setSwapFees` validation currently rejects `fee > 10_000`. `DYNAMIC_FEE_FLAG = 0x800000 = 8,388,608` exceeds this.
+
+**(2) Make the V4 hooks address settable.** `unlockCallback` (Router.sol:225) **hardcodes** `hooks: IHooks(address(0))` when reconstructing the PoolKey for the exit swap. A pool created *with* WstDIEMHook has a different PoolKey (`hooks = hook address`), so the Router must target it. Add `address public wstDiemV4Hooks;` (defaults to `address(0)`, preserving current behavior until set), use it in the `unlockCallback` PoolKey, and set it via `setSwapFees`.
+
+`setSwapFees` has **zero callers** in `script/` or `test/` (verified), so extend its signature rather than adding a parallel setter — keeps the full V4 pool-key config in one owner function:
 
 ```solidity
-bool isDynamic = _wstDiemV4Fee == LPFeeLibrary.DYNAMIC_FEE_FLAG;
-require(
-    (_wstDiemV4Fee > 0 && _wstDiemV4Fee <= 1_000_000) || isDynamic,
-    "invalid V4 fee"
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
+
+address public wstDiemV4Hooks; // V4 pool hook address (address(0) = no hook)
+
+event SwapFeesSet(
+    uint24 diemV3Fee, uint24 wstDiemV4Fee, int24 wstDiemV4TickSpacing, address wstDiemV4Hooks
 );
+
+function setSwapFees(
+    uint24 _diemV3Fee,
+    uint24 _wstDiemV4Fee,
+    int24 _wstDiemV4TickSpacing,
+    address _wstDiemV4Hooks
+) external onlyOwner {
+    require(_diemV3Fee > 0 && _diemV3Fee <= 10_000, "invalid DIEM V3 fee");
+    bool isDynamic = _wstDiemV4Fee == LPFeeLibrary.DYNAMIC_FEE_FLAG;
+    require(
+        (_wstDiemV4Fee > 0 && _wstDiemV4Fee <= LPFeeLibrary.MAX_LP_FEE) || isDynamic,
+        "invalid V4 fee"
+    );
+    require(_wstDiemV4TickSpacing > 0, "invalid tick spacing");
+    diemV3Fee = _diemV3Fee;
+    wstDiemV4Fee = _wstDiemV4Fee;
+    wstDiemV4TickSpacing = _wstDiemV4TickSpacing;
+    wstDiemV4Hooks = _wstDiemV4Hooks;
+    emit SwapFeesSet(_diemV3Fee, _wstDiemV4Fee, _wstDiemV4TickSpacing, _wstDiemV4Hooks);
+}
 ```
 
-No other Router changes. Router redeployed via `DeployRouter.s.sol` (standard procedure per CLAUDE.md).
+And in `unlockCallback`: `hooks: IHooks(wstDiemV4Hooks)` instead of `IHooks(address(0))`.
+
+Router redeployed via `DeployRouter.s.sol` (standard procedure per CLAUDE.md). **Note:** the current `DeployRouter.s.sol` still hardcodes the *v4* vault (`0x4751…`); it must be updated to the v5 vault (`0xb9f23c33…`) before redeploy.
 
 After redeployment, Safe calls:
-- `Router.setSwapFees(10_000 /*diemV3Fee unchanged*/, DYNAMIC_FEE_FLAG, 60)`
+- `Router.setSwapFees(10_000, DYNAMIC_FEE_FLAG, 60, <WstDIEMHook address>)`
 - `Router.setV4Pool(POOL_MANAGER)` (address `0x498581fF…` — unchanged, just confirm it's set)
 
 ### A4. New V4 Pool Initialization
