@@ -1,7 +1,7 @@
 # wstDIEM — Fee Structure & Economics
 
 **Last updated:** 2026-06-03
-**Vault:** `0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D` (InferenceVault v5)
+**Vault:** `0xe49FA849cB37b0e7A42B2335e333fb99474167ba` (InferenceVault v6)
 **Chain:** Base mainnet
 
 ---
@@ -9,6 +9,18 @@
 ## Summary
 
 wstDIEM is a rebasing-rate token. You hold a fixed share count; each share redeems for more DIEM over time as yield accrues through three channels: inference revenue (Venice API), Liquid Protocol fee income, and (optionally) Morpho borrowing interest. There is no performance fee and no withdrawal fee — one entry fee only.
+
+---
+
+## DIEM Value (≫ $1) & VVV-Denominated Liquidity
+
+DIEM is **not** a $1 stablecoin. Each staked DIEM grants **$1/day of Venice inference in perpetuity**, so it prices like a perpetuity — **~$1,100–1,360 on-chain** (≈89 VVV × $15.29 VVV/USD, 2026-06-05), roughly 1,200× $1.
+
+DIEM has **no USD-liquid DEX market**. Its only deep liquidity is **DIEM/VVV on Aerodrome (~$9M total)** — a ~$6M volatile pool plus CL pools (37,340 DIEM supply, ~78% staked, ~3,680 across all pools). Implications:
+
+- Any DIEM/USD oracle must hop DIEM→VVV→USD. The existing wstDIEM/USDC & wstDIEM/WETH Morpho oracles hardcode `DIEM = $1` and are flagged for fix (**MOG-542**, see `SECURITY_REVIEW.md`).
+- The high-LLTV lending market is denominated in **VVV**: borrow VVV against wstDIEM via `WstDiemVvvOracle` (fully on-chain, no USD feed). VVV is liquid (~$700M mcap, ~$90M/24h vol). See **MOG-544** and the Leverage Loop section below.
+- External liquidity centers on VVV; Curve DIEM/wstDIEM is a thin peg-keeper because raw DIEM is scarce.
 
 ---
 

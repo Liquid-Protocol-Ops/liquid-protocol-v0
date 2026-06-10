@@ -1,8 +1,8 @@
 # wstDIEM Keeper Runbook
 
 **Chain:** Base mainnet (chain ID 8453)
-**InferenceVault v5:** `0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D`
-**FeeRouter:** `0x3b8d968DCca09E319fac7Df741804Af5644E3a60`
+**InferenceVault v6:** `0xe49FA849cB37b0e7A42B2335e333fb99474167ba`
+**FeeRouter:** `0xa13a6e75d696bAceB38236389eeFD6eCa5FD4ED3`
 **Safe (owner):** `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
 
 ---
@@ -164,10 +164,16 @@ cast calldata "unpause()"
 
 ```bash
 export BASE_RPC_URL=https://base-mainnet.g.alchemy.com/v2/<key>
-export VAULT=0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D
-export FEE_ROUTER=0x3b8d968DCca09E319fac7Df741804Af5644E3a60
+export VAULT=0xe49FA849cB37b0e7A42B2335e333fb99474167ba
+export FEE_ROUTER=0xa13a6e75d696bAceB38236389eeFD6eCa5FD4ED3
 export DIEM=0xF4d97F2da56e8c3098f3a8D538DB630A2606a024
-export KEEPER_PK=$(op item get el4qwixmdot757dpxcqgfo43qe --field "private key" --reveal)
+
+# Keeper EOA (0x988C…6f2f) — local Splits signing key, also used for on-chain keeper calls
+# Fund via wstdiem-keeper Splits account (0x102368E997ced4b94d093813B3c1F5fB1F15f4B1)
+export KEEPER_PK=$(cat ~/.splits/config.json | python3 -c "import sys,json; print(json.load(sys.stdin)['key']['privateKey'])")
+
+# Deployer v6 EOA — only needed for contract deployment, not routine keeper ops
+export DEPLOYER_V6_PK=$(op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credential --reveal)
 ```
 
 ---
@@ -176,5 +182,8 @@ export KEEPER_PK=$(op item get el4qwixmdot757dpxcqgfo43qe --field "private key" 
 
 | Date | Action |
 |------|--------|
-| 2026-07-01 03:32 UTC | Run `SafeEnableWithdrawals.s.sol` on old vault v4 (MOG-520) |
-| After July 1 | Request, flush, settle, claim 2.739 wstDIEM from old vault |
+| 2026-06-04 | Run `SafeInitiateWithdrawals.s.sol` on old vault v4 — starts 14-day timelock (MOG-520) |
+| 2026-06-18 | Run `SafeEnableWithdrawals.s.sol` — then requestWithdraw / flushBatch / wait 24h / claimBatch → ~2.756 DIEM to Safe |
+| After June 18 | Deposit recovered DIEM into v5 per GROWTH_PLAN.md Phase 0–1 |
+
+> **Note:** July 1 was the original target assuming June 17 initiation. Initiating today cuts 13 days off the timeline. MOG-520 can be updated accordingly.

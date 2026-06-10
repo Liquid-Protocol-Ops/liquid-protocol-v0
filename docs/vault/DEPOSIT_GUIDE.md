@@ -1,9 +1,9 @@
 # wstDIEM Deposit and Exit Guide
 
 **Chain:** Base mainnet (chain ID 8453)
-**InferenceVault (wstDIEM token):** `0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D`
-**Router:** `0x6fF481F4B3B0E2ADa548D454F7011D1ed51532B6`
-**Curve DIEM/wstDIEM:** `0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2`
+**InferenceVault (wstDIEM token):** `0xe49FA849cB37b0e7A42B2335e333fb99474167ba`
+**Router:** `0x74ad4532133Ba538945a5371D249560E66CC7c71`
+**Curve DIEM/wstDIEM:** `0x21c33a1Bb5f6Eb43563e1fB9e7AA1D4E90C1A0CD`
 
 ---
 

@@ -1,9 +1,9 @@
 # wstDIEM Vault — System Overview
 
-**Version:** v5 (2026-06-03)
+**Version:** v5 (2026-06-10)
 **Chain:** Base mainnet (chain ID 8453)
 **Owner (Safe):** `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
-**InferenceVault v5:** `0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D`
+**InferenceVault v6:** `0xe49FA849cB37b0e7A42B2335e333fb99474167ba`
 
 ---
 
@@ -59,16 +59,16 @@ The vault does three things:
 
 | Contract | Address | Role |
 |----------|---------|------|
-| InferenceVault | `0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D` | ERC-4626 vault, wstDIEM token, withdrawal queue |
-| FeeRouter | `0x3b8d968DCca09E319fac7Df741804Af5644E3a60` | Aggregates Liquid Protocol fees, routes to vault |
-| Router | `0x6fF481F4B3B0E2ADa548D454F7011D1ed51532B6` | WETH/VVV entry, Morpho leverage loop |
+| InferenceVault | `0xe49FA849cB37b0e7A42B2335e333fb99474167ba` | ERC-4626 vault, wstDIEM token, withdrawal queue |
+| FeeRouter | `0xa13a6e75d696bAceB38236389eeFD6eCa5FD4ED3` | Aggregates Liquid Protocol fees, routes to vault |
+| Router | `0x74ad4532133Ba538945a5371D249560E66CC7c71` | WETH/VVV entry, Morpho leverage loop |
 | AntSeedAdapter | `0xE9C2BE3ab25E97Ef4364c505202016106Bec6a6e` | AntSeed USDC settlement |
 | SurplusAdapter | `0xB67A86Ab50e30d7509eeD205Fc01A70758B227Db` | Surplus AI USDC settlement |
 | X402Adapter | `0xC3C3CaC663f88304a38Cb9C4e9c02bB57DB00142` | X402 micropayment settlement |
-| SurplusStakingWrapper | `0x04fAc3e264bD05478Ffc1Caa25394403f8eBc7d7` | Referral deposit wrapper |
-| AgentTGERegistry | `0x09a4227935FF15b261533238F79935CCcA0e7941` | Agent lifecycle tracking |
-| InferenceProduct | `0x8620304D28c162E2D2Ae3bF279516DAc368D6879` | On-chain inference slot registry |
-| Curve DIEM/wstDIEM | `0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2` | StableSwap exit pool |
+| SurplusStakingWrapper | `0x1A74750eb49c2f6C8C44B9eadaE5C55C7941F271` | Referral deposit wrapper |
+| AgentTGERegistry | `0xb13830e7f72Eef167A7F188285feBa5f7C1198Ef` | Agent lifecycle tracking |
+| InferenceProduct | `0xE43c4B1930531360c3924F72e9395e9c5bC4a5F3` | On-chain inference slot registry |
+| Curve DIEM/wstDIEM | `0x21c33a1Bb5f6Eb43563e1fB9e7AA1D4E90C1A0CD` | StableSwap exit pool |
 | Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | 2-of-3 multisig, owns all contracts |
 
 ---
@@ -137,3 +137,65 @@ Net effect: caller holds leveraged wstDIEM position (up to 4.35x at 77% LLTV)
 ## Venice ERC-1271 Integration
 
 The vault implements `isValidSignature()`. Venice binds an API key to the vault's staked DIEM by verifying the vault's signature on a challenge. The vault checks that the signer is `veniceSigner` — a hot key separate from the Safe owner. Currently set to deployer; rotate to a Privy server wallet before production key registration.
+
+---
+
+## Liquidity Layer
+
+Three exit/entry venues sit around the vault:
+
+| Venue | Address | Purpose |
+|-------|---------|---------|
+| Curve DIEM/wstDIEM | `0x21c33a1Bb5f6Eb43563e1fB9e7AA1D4E90C1A0CD` | Sync exit: wstDIEM→DIEM at ~1:rate, no cooldown |
+| Uniswap V4 wstDIEM/WETH (0.3%) | PoolManager `0x498581...` | Sync exit: wstDIEM→WETH via Router; also WETH entry |
+| Morpho wstDIEM/DIEM (86% LLTV) | Oracle `0xB1B192...` | Leverage loop collateral; DIEM lending market |
+
+The V4 pool doubles as the Router's `exitToWETH` backend. Morpho enables `loopDeposit` — borrow DIEM against wstDIEM collateral to re-deposit and compound exposure (up to 4.35x at 77% LLTV).
+
+---
+
+## VVV Lending Market & Oracle (planned — v6, MOG-544)
+
+DIEM has no USD-liquid market (only DIEM/VVV on Aerodrome, ~$9M; DIEM ≈ $1,200), so the high-LLTV lending market is denominated in **VVV**: collateral wstDIEM, loan VVV, priced by **`WstDiemVvvOracle`** — fully on-chain (`price = convertToAssets(1e18) × DIEM/VVV TWAP`, no USD feed). Lenders supply VVV; wstDIEM holders borrow VVV (loopable via `mintDiem`). The wstDIEM/DIEM leverage-loop market above uses the vault rate directly (no USD) and is unaffected; the wstDIEM/USDC & wstDIEM/WETH oracles hardcode DIEM=$1 and are gated by MOG-542.
+
+## Security Review
+
+Claude Code multi-agent review of `src/vault/**` (2026-06-05): **3 confirmed findings (1 High, 2 Medium), no principal-loss issues**. See `docs/vault/SECURITY_REVIEW.md` and Linear MOG-532 (fixes: MOG-541/542/543).
+
+## Agent Integration
+
+wstDIEM is the denomination token for autonomous agent economics:
+
+**Venice capacity:** The vault's sDIEM stake grants inference access. Agents registered against the vault's API key inherit proportional capacity. More vault TVL → more inference power.
+
+**AgentTGERegistry:** Bronze/Silver/Gold tiers track agent staking. Target: tier thresholds in wstDIEM units (via `vault.convertToAssets(shares)`) so tiers auto-adjust as the exchange rate grows.
+
+**InferenceProduct:** Inference slots (staked DIEM wallets) can be purchased by depositing wstDIEM directly — no USDC→DIEM swap. Revenue routes back through adapters → `creditDIEM()` → rate accrues to all holders.
+
+**Autonomous agents (`deploy-autonomous`):** Agents earn USDC from serving inference → USDC flows through venue adapters → `creditDIEM()` → agents' own wstDIEM holdings appreciate. Each agent is a self-compounding node in the network.
+
+---
+
+## Accumulation Flywheel
+
+```
+Deposit DIEM
+    │
+    ▼
+wstDIEM shares (fixed count, rising DIEM value)
+    │
+    ├─► Morpho collateral → borrow DIEM → re-deposit → multiply exposure
+    │
+    └─► Venice inference capacity (via staked DIEM)
+            │
+            ▼
+        Inference revenue (USDC) → adapters → creditDIEM → rate ↑
+            │
+            ▼
+        Same shares worth more DIEM → healthier Morpho health factor
+            │
+            ▼
+        More borrowing headroom → deeper loop possible
+```
+
+The exchange rate is a one-way ratchet: `creditDIEM()` only adds assets, never removes them.
