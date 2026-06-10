@@ -65,8 +65,11 @@ contract DeployVvvMarket is Script {
     address constant VVV = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf; // LIQUID VVV (loan token)
     address constant AERO_POOL = 0xbB345D35450BF9Ee76F3D2cE214E8e7AC5e1071d; // Aerodrome volatile VVV/DIEM
 
-    // Oracle config — granularity 2 ≈ ~1h TWAP (MOG-544 decision, 2026-06-05)
-    uint256 constant TWAP_GRANULARITY = 2;
+    // Oracle config — granularity 24 ≈ ~12h TWAP + 2h staleness bound (MOG-548 security review:
+    // granularity 2 was too short for a single-pool, no-external-market asset → multi-block
+    // manipulation risk). Superseded by the DeployV6 orchestrator; retained for provenance/compile.
+    uint256 constant TWAP_GRANULARITY = 24;
+    uint256 constant MAX_OBSERVATION_AGE = 7200;
 
     // 62.5% LLTV — conservative; collateral value rides DIEM/VVV volatility.
     uint256 constant LLTV = 625e15;
@@ -77,7 +80,8 @@ contract DeployVvvMarket is Script {
 
         vm.startBroadcast(vm.envUint("DEPLOYER_PK"));
 
-        WstDiemVvvOracle oracle = new WstDiemVvvOracle(WSTDIEM, AERO_POOL, VVV, TWAP_GRANULARITY);
+        WstDiemVvvOracle oracle =
+            new WstDiemVvvOracle(WSTDIEM, AERO_POOL, VVV, TWAP_GRANULARITY, MAX_OBSERVATION_AGE);
         console.log("WstDiemVvvOracle deployed:", address(oracle));
 
         // Sanity: price() = vaultRate(≈1e18) × TWAP(≈89.7e18) ≈ 8.97e37 at a fresh rate.

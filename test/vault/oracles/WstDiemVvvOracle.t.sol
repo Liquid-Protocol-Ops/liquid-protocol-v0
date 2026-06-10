@@ -30,7 +30,8 @@ contract WstDiemVvvOracleForkTest is Test {
     address constant SVVV = 0x321b7ff75154472B18EDb199033fF4D116F340Ff; // sVVV staking — NOT in the pool
     address constant WETH = 0x4200000000000000000000000000000000000006;
     address constant AERO_POOL = 0xbB345D35450BF9Ee76F3D2cE214E8e7AC5e1071d; // Aerodrome volatile VVV/DIEM
-    uint256 constant GRANULARITY = 2; // ~2 observations ≈ ~1h TWAP window
+    uint256 constant GRANULARITY = 24; // ~24 observations ≈ ~12h TWAP window (MOG-548 review)
+    uint256 constant MAX_AGE = 7200; // 2h staleness bound on the newest committed observation
 
     InferenceVault vault;
     WstDiemVvvOracle oracle;
@@ -42,7 +43,7 @@ contract WstDiemVvvOracleForkTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
         vault = new InferenceVault(DIEM, treasury, makeAddr("veniceSigner"), owner);
-        oracle = new WstDiemVvvOracle(address(vault), AERO_POOL, VVV, GRANULARITY);
+        oracle = new WstDiemVvvOracle(address(vault), AERO_POOL, VVV, GRANULARITY, MAX_AGE);
     }
 
     // ─── constructor ──────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ contract WstDiemVvvOracleForkTest is Test {
         assertEq(oracle.diem(), DIEM); // derived from vault.asset()
         assertEq(oracle.vvv(), VVV);
         assertEq(oracle.twapGranularity(), GRANULARITY);
+        assertEq(oracle.maxObservationAge(), MAX_AGE);
     }
 
     /// The MOG-544 footgun: the pool pairs DIEM with *liquid VVV* (0xacfE…), not the
@@ -60,26 +62,31 @@ contract WstDiemVvvOracleForkTest is Test {
     /// any token not in the pool — must revert, not deploy a silently-wrong oracle.
     function test_constructor_revertsWhenVvvNotInPool() public {
         vm.expectRevert(WstDiemVvvOracle.TokenNotInPool.selector);
-        new WstDiemVvvOracle(address(vault), AERO_POOL, SVVV, GRANULARITY);
+        new WstDiemVvvOracle(address(vault), AERO_POOL, SVVV, GRANULARITY, MAX_AGE);
 
         vm.expectRevert(WstDiemVvvOracle.TokenNotInPool.selector);
-        new WstDiemVvvOracle(address(vault), AERO_POOL, WETH, GRANULARITY);
+        new WstDiemVvvOracle(address(vault), AERO_POOL, WETH, GRANULARITY, MAX_AGE);
     }
 
     function test_constructor_revertsOnZeroArgs() public {
         vm.expectRevert(bytes("zero address"));
-        new WstDiemVvvOracle(address(0), AERO_POOL, VVV, GRANULARITY);
+        new WstDiemVvvOracle(address(0), AERO_POOL, VVV, GRANULARITY, MAX_AGE);
 
         vm.expectRevert(bytes("zero address"));
-        new WstDiemVvvOracle(address(vault), address(0), VVV, GRANULARITY);
+        new WstDiemVvvOracle(address(vault), address(0), VVV, GRANULARITY, MAX_AGE);
 
         vm.expectRevert(bytes("zero address"));
-        new WstDiemVvvOracle(address(vault), AERO_POOL, address(0), GRANULARITY);
+        new WstDiemVvvOracle(address(vault), AERO_POOL, address(0), GRANULARITY, MAX_AGE);
     }
 
     function test_constructor_revertsOnZeroGranularity() public {
         vm.expectRevert(bytes("granularity=0"));
-        new WstDiemVvvOracle(address(vault), AERO_POOL, VVV, 0);
+        new WstDiemVvvOracle(address(vault), AERO_POOL, VVV, 0, MAX_AGE);
+    }
+
+    function test_constructor_revertsOnZeroMaxAge() public {
+        vm.expectRevert(bytes("maxAge=0"));
+        new WstDiemVvvOracle(address(vault), AERO_POOL, VVV, GRANULARITY, 0);
     }
 
     // ─── price() formula ──────────────────────────────────────────────────────
@@ -163,5 +170,18 @@ contract WstDiemVvvOracleForkTest is Test {
         // the TWAP (and oracle) shrugged it off: <2% in the same block
         assertApproxEqRel(q1, q0, 0.02e18, "TWAP moved too much under single-block manipulation");
         assertApproxEqRel(p1, p0, 0.02e18, "oracle price moved too much under manipulation");
+    }
+
+    // ─── staleness guard (MOG-548 review) ──────────────────────────────────────
+
+    /// price() must fail CLOSED when the newest committed Aerodrome observation is older than
+    /// maxObservationAge — a quiet pool cannot serve a long-stale TWAP that would delay liquidations.
+    function test_price_revertsWhenObservationStale() public {
+        oracle.price(); // fresh: newest observation is recent on the fork
+
+        // No new observation is committed; advance time past the staleness bound.
+        vm.warp(block.timestamp + MAX_AGE + 1);
+        vm.expectRevert(WstDiemVvvOracle.StaleObservation.selector);
+        oracle.price();
     }
 }

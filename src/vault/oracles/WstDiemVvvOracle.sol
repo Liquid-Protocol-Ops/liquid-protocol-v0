@@ -16,6 +16,15 @@ interface IAerodromePool {
         returns (uint256 amountOut);
     function token0() external view returns (address);
     function token1() external view returns (address);
+
+    // Solidly-style stored TWAP observation. lastObservation() returns the most recently
+    // committed observation; its timestamp bounds how stale quote() can be.
+    struct Observation {
+        uint256 timestamp;
+        uint256 reserve0Cumulative;
+        uint256 reserve1Cumulative;
+    }
+    function lastObservation() external view returns (Observation memory);
 }
 
 // Morpho oracle: wstDIEM collateral / VVV loan.
@@ -48,8 +57,14 @@ interface IAerodromePool {
 //   1 wstDIEM (1e18 units) -> 1e18 * 8.9e37 / 1e36 = 89e18 VVV units = 89 VVV  ✓
 //
 // Safety:
-//   - TWAP window ~= twapGranularity * ~30 min (Aerodrome periodSize). Use 2-4 (~1-2 h):
-//     long enough to defeat single-block manipulation, short enough to track real moves.
+//   - TWAP window ~= twapGranularity * ~30 min (Aerodrome periodSize). DIEM has NO external
+//     market, so a manipulated spot is NOT arbitraged back during the window — the real threat
+//     is MULTI-block manipulation (sustaining a dislocation across the averaged observations),
+//     not single-block. Use a LARGE granularity (~24 ≈ 12 h) so holding a dislocation across
+//     the whole window costs more than the per-market borrow cap (MOG-548 security review).
+//   - maxObservationAge fails the price CLOSED (revert) when the newest committed observation is
+//     older than the bound — caps TWAP staleness on a quiet pool and forces fresh data before a
+//     borrow/liquidation can read the price.
 //   - The DIEM/VVV pool must have >= twapGranularity recorded observations and live activity;
 //     otherwise quote() can revert or under-average. Verify cardinality before market creation.
 //   - This oracle is IMMUTABLE (no owner). A Morpho market's oracle is fixed at creation, so to
@@ -63,18 +78,30 @@ contract WstDiemVvvOracle {
     address public immutable diem;
     address public immutable vvv;
     uint256 public immutable twapGranularity;
+    /// @notice Max age (seconds) of the newest committed Aerodrome observation before price()
+    ///         reverts StaleObservation. Bounds TWAP staleness on a low-activity pool. Immutable.
+    uint256 public immutable maxObservationAge;
 
     error ZeroPrice();
     error TokenNotInPool();
+    error StaleObservation();
 
-    constructor(address _vault, address _pool, address _vvv, uint256 _twapGranularity) {
+    constructor(
+        address _vault,
+        address _pool,
+        address _vvv,
+        uint256 _twapGranularity,
+        uint256 _maxObservationAge
+    ) {
         require(_vault != address(0) && _pool != address(0) && _vvv != address(0), "zero address");
         require(_twapGranularity > 0, "granularity=0");
+        require(_maxObservationAge > 0, "maxAge=0");
         vault = IInferenceVault(_vault);
         pool = IAerodromePool(_pool);
         diem = IInferenceVault(_vault).asset();
         vvv = _vvv;
         twapGranularity = _twapGranularity;
+        maxObservationAge = _maxObservationAge;
 
         // Sanity: the pool must be the DIEM/VVV pair.
         address t0 = IAerodromePool(_pool).token0();
@@ -85,6 +112,12 @@ contract WstDiemVvvOracle {
 
     /// @notice Price of 1 wstDIEM quoted in VVV, scaled by 1e36 (Morpho Blue convention).
     function price() external view returns (uint256) {
+        // Staleness gate: fail closed if the newest committed observation is older than
+        // maxObservationAge, so a quiet pool can't serve a long-stale TWAP (which would delay
+        // liquidations / let positions go silently underwater). Addition form is underflow-safe.
+        IAerodromePool.Observation memory last = pool.lastObservation();
+        if (last.timestamp + maxObservationAge < block.timestamp) revert StaleObservation();
+
         // VVV base units for 1 DIEM, TWAP-averaged over the last `twapGranularity` observations.
         uint256 vvvPerDiem = pool.quote(diem, 1e18, twapGranularity);
         // DIEM base units per 1 wstDIEM. One-way ratchet; pendingWithdrawalDiem is already
