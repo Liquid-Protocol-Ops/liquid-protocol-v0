@@ -36,13 +36,15 @@ contract PhaseAIntegrationTest is Test {
         assertGt(shares, 0);
         assertEq(vault.maxWithdraw(alice), 0, "withdrawals disabled at launch");
 
-        // FeeRouter credits 10 DIEM (non-dilutive)
-        uint256 supplyBefore = vault.totalSupply();
+        // FeeRouter credits 10 DIEM. creditDIEM is non-dilutive to depositors:
+        // existing holders' share balances are untouched and the rate rises.
+        // (The yieldFeeBps cut is minted as fee shares to the treasury, not to depositors.)
+        uint256 aliceShares = vault.balanceOf(alice);
         uint256 rateBefore = vault.convertToAssets(1e18);
         vm.prank(venueAdapter);
         vault.creditDIEM(10e18);
 
-        assertEq(vault.totalSupply(), supplyBefore, "no new shares on creditDIEM");
+        assertEq(vault.balanceOf(alice), aliceShares, "depositor shares unchanged by creditDIEM");
         assertGt(vault.convertToAssets(1e18), rateBefore, "rate improved");
     }
 

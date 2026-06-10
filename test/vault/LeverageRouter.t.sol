@@ -319,9 +319,13 @@ contract LeverageRouterTest is Test {
         // realizedLTV = borrow / col
         uint256 realizedLTV = borrow * 1e18 / col;
 
-        // Target 70% LTV. Deposit fee reduces collateral slightly → realized LTV
-        // is slightly higher than target. Allow 2% relative tolerance.
-        assertApproxEqRel(realizedLTV, TARGET_LTV, 0.02e18, "LTV mismatch");
+        // loopDeposit routes equity+flash through vault.deposit, which charges
+        // depositFeeBps. Post-fee collateral shrinks, so realized LTV =
+        // target / (1 - depositFee). At the 2.5% fee a 70% target realizes ~71.8%,
+        // held safely below the 75% LLTV by loopDeposit's fee-aware headroom guard.
+        uint256 feeBps = vault.currentDepositFeeBps();
+        uint256 expectedLTV = TARGET_LTV * 10_000 / (10_000 - feeBps);
+        assertApproxEqRel(realizedLTV, expectedLTV, 0.005e18, "LTV mismatch");
     }
 
     /// @notice minWstOut slippage guard reverts when set above actual output.
