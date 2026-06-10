@@ -160,15 +160,19 @@ contract DeployV6 is Script {
     }
 
     function run() external returns (Deployment memory d) {
-        uint256 pk = vm.envUint("DEPLOYER_PK");
-        address deployer = vm.addr(pk);
+        // Production: DEPLOYER_PK = the fresh single-use EOA. Dry-run: omit DEPLOYER_PK and
+        // pass `--sender <DIEM-holder> --unlocked` to simulate as a funded, EOA-origin caller
+        // (satisfies both the 0.01-DIEM seed and the Curve factory's tx.origin==msg.sender guard).
+        uint256 pk = vm.envOr("DEPLOYER_PK", uint256(0));
+        address deployer = pk != 0 ? vm.addr(pk) : msg.sender;
         address treasury = vm.envAddress("TREASURY_ADDRESS");
         address safe = vm.envAddress("SAFE_ADDRESS");
         address veniceSigner = vm.envOr("VENICE_SIGNER", deployer);
         uint160 sqrtPriceX96 = uint160(vm.envUint("SQRT_PRICE_X96"));
         uint256 vvvUsdE8 = vm.envUint("VVV_USD_E8");
 
-        vm.startBroadcast(pk);
+        if (pk != 0) vm.startBroadcast(pk);
+        else vm.startBroadcast();
         d = _deploy(deployer, treasury, safe, veniceSigner, sqrtPriceX96, vvvUsdE8);
         vm.stopBroadcast();
 
