@@ -17,7 +17,7 @@ contract SurplusStakingWrapperTest is Test {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
         vault =
             new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
-        wrapper = new SurplusStakingWrapper(address(vault), address(0));
+        wrapper = new SurplusStakingWrapper(address(vault), address(0), address(this));
 
         deal(DIEM, user, 1000e18);
         vm.prank(user);

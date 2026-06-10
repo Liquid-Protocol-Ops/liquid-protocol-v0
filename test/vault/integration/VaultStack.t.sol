@@ -33,10 +33,12 @@ contract VaultStackIntegrationTest is Test {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
 
         vault = new InferenceVault(DIEM, treasury, makeAddr("veniceSigner"), address(this));
-        feeRouter = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, address(0), address(0));
-        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
+        feeRouter = new FeeRouter(
+            address(vault), WETH, VVV, VVV_STAKING, address(0), address(0), address(this)
+        );
+        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0), address(this));
         registry = new AgentTGERegistry(address(feeRouter), address(this));
-        wrapper = new SurplusStakingWrapper(address(vault), address(0));
+        wrapper = new SurplusStakingWrapper(address(vault), address(0), address(this));
 
         vault.setVenueAdapter(address(feeRouter), true);
 

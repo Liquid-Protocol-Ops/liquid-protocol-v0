@@ -152,9 +152,14 @@ contract Router is Ownable, ReentrancyGuard, IMorphoFlashLoanCallback {
     /// @param _morpho Morpho Blue address. Pass address(0) to use the Base mainnet
     ///                default (0xBBBBBbbBBb...). Explicit injection enables unit tests
     ///                to use MockMorpho without forking.
-    constructor(address _vault, address _weth, address _vvv, address _vvvStaking, address _morpho)
-        Ownable(msg.sender)
-    {
+    constructor(
+        address _vault,
+        address _weth,
+        address _vvv,
+        address _vvvStaking,
+        address _morpho,
+        address initialOwner
+    ) Ownable(initialOwner) {
         if (
             _vault == address(0) || _weth == address(0) || _vvv == address(0)
                 || _vvvStaking == address(0)

@@ -55,8 +55,8 @@ contract FeeRouter is Ownable {
     // Uniswap V3 SwapRouter02 on Base
     address constant V3_ROUTER = 0x2626664c2603336E57B271c5C0b26F421741e481;
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    uint24 public diemFee = 10_000;     // WETH/DIEM V3 pool fee tier. Owner-updatable.
-    uint24 public usdcWethFee = 500;    // USDC/WETH V3 pool fee tier. Owner-updatable.
+    uint24 public diemFee = 10_000; // WETH/DIEM V3 pool fee tier. Owner-updatable.
+    uint24 public usdcWethFee = 500; // USDC/WETH V3 pool fee tier. Owner-updatable.
 
     IInferenceVault public immutable vault;
     address public immutable weth;
@@ -130,8 +130,9 @@ contract FeeRouter is Ownable {
         address _vvv,
         address _vvvStaking,
         address _curvePool,
-        address /*_v4Pool*/ // reserved for ABI compat; unused
-    ) Ownable(msg.sender) {
+        address, /*_v4Pool — reserved for ABI compat; unused*/
+        address initialOwner
+    ) Ownable(initialOwner) {
         vault = IInferenceVault(_vault);
         weth = _weth;
         vvv = _vvv;

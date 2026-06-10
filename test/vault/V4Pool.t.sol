@@ -44,7 +44,7 @@ contract V4PoolTest is Test {
         // Init the hooked pool at tick 0 (1:1) for deterministic test math.
         IPoolManager(POOL_MANAGER).initialize(_key(), TickMath.getSqrtPriceAtTick(0));
 
-        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
+        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0), address(this));
         router.setV4Pool(POOL_MANAGER);
         router.setSwapFees(10_000, LPFeeLibrary.DYNAMIC_FEE_FLAG, 60, hookAddr);
 

@@ -23,7 +23,7 @@ contract RouterTest is Test {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
         vault =
             new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
-        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
+        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0), address(this));
 
         deal(DIEM, alice, 1000e18);
         deal(WETH, alice, 10e18);

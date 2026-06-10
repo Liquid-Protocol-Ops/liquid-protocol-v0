@@ -226,7 +226,8 @@ contract LeverageRouterTest is Test {
             makeAddr("weth"),
             makeAddr("vvv"),
             makeAddr("vvvStaking"),
-            address(morpho)
+            address(morpho),
+            address(this)
         );
 
         // 5. Configure Router.
@@ -451,7 +452,8 @@ contract LeverageRouterTest is Test {
             makeAddr("weth2"),
             makeAddr("vvv2"),
             makeAddr("vvvStaking2"),
-            address(morpho)
+            address(morpho),
+            address(this)
         );
         diem.mint(alice, 1000e18);
         vm.prank(alice);
