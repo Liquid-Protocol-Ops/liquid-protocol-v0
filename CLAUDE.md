@@ -100,8 +100,8 @@ ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM i
 | Curve DIEM/wstDIEM | `0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2` |
 | Morpho wstDIEM/DIEM oracle (86% LLTV) | `0xB1B192fc0190bA15F4EC76BF6032123bc688F76D` |
 | Morpho wstDIEM/DIEM oracle (77% LLTV) | `0xE762e8011D453853638D1978398df8b1D383A2D9` |
-| Morpho wstDIEM/USDC oracle (62.5% — DIEM=$1, see Security) | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` |
-| Morpho wstDIEM/WETH oracle (62.5% — DIEM=$1, see Security) | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` |
+| Morpho wstDIEM/USDC oracle (DEPRECATED — MOG-542, do not use) | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` |
+| Morpho wstDIEM/WETH oracle (DEPRECATED — MOG-542, do not use) | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` |
 | Morpho wstDIEM/VVV oracle (62.5%, on-chain TWAP — MOG-544) | `0xC76e2fe5176B432035Def5362023a8DF36bEE94E` |
 | AntSeedAdapter | `0xE9C2BE3ab25E97Ef4364c505202016106Bec6a6e` |
 | SurplusAdapter | `0xB67A86Ab50e30d7509eeD205Fc01A70758B227Db` |
@@ -178,4 +178,4 @@ For the **Liquid Protocol** side, `README.md` lists all deployed core/hook/exten
 
 - **Liquid Protocol** is a fork of [Clanker v4](https://github.com/clanker-devco/v4-contracts), audited by **0xMacro** and **Cantina**. The hook/locker/extension logic is architecturally identical to the audited code (only `Clanker*`→`Liquid*` renames + own factory).
 - **The wstDIEM vault (`src/vault/**`) is new and unaudited.** An agent-driven review (`docs/vault/SECURITY_REVIEW.md`, MOG-532) surfaced **1 High + 2 Medium**, all fixed only by a **v6 redeploy** (MOG-541/542/543/544); a third-party audit is recommended before large external TVL.
-- **Live oracle caveat:** the deployed `WstDiemUsdcOracle` / `WstDiemWethOracle` **hardcode `DIEM = $1`**, but DIEM trades ≈ $1,100+ (it's a perpetuity ≈ 89 VVV). Treat the wstDIEM/USDC and wstDIEM/WETH Morpho markets as **mispriced — do not seed meaningful TVL**. The fix is `WstDiemVvvOracle` (VVV-denominated, fully on-chain). The wstDIEM/DIEM leverage-loop market uses the vault rate directly and is unaffected.
+- **Live oracle caveat:** the deployed `WstDiemUsdcOracle` / `WstDiemWethOracle` **hardcode `DIEM = $1`**, but DIEM trades ≈ $1,100+ (it's a perpetuity ≈ 89 VVV). Treat the wstDIEM/USDC and wstDIEM/WETH Morpho markets as **mispriced — do not seed meaningful TVL**. The fix is `WstDiemVvvOracle` (VVV-denominated, fully on-chain). The wstDIEM/DIEM leverage-loop market uses the vault rate directly and is unaffected. These two markets are now formally deprecated (MOG-549); the VVV market is canonical. (MOG-549 sweep: `$1/DIEM/day` is correct as an *inference entitlement* in `AgentTGERegistry`/`InferenceProduct`; it was only wrong as a *collateral price* in these two oracles + the V4 init.)

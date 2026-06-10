@@ -30,10 +30,14 @@
 | Market | Oracle | LLTV | Basescan |
 |--------|--------|------|---------|
 | wstDIEM/DIEM (leverage loop) | `0xB1B192fc0190bA15F4EC76BF6032123bc688F76D` | 86% | [view](https://basescan.org/address/0xb1b192fc0190ba15f4ec76bf6032123bc688f76d) |
-| wstDIEM/USDC | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` | 62.5% | [view](https://basescan.org/address/0x7f3eab9863d4f5a1d34d89f7b802c0ea2469b51a) |
-| wstDIEM/WETH | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` | 62.5% | [view](https://basescan.org/address/0x73fddccbb524b04b43eded9c4d20c061de291f07) |
+| wstDIEM/USDC | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` | 62.5% — DEPRECATED (MOG-542, do not use) | [view](https://basescan.org/address/0x7f3eab9863d4f5a1d34d89f7b802c0ea2469b51a) |
+| wstDIEM/WETH | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` | 62.5% — DEPRECATED (MOG-542, do not use) | [view](https://basescan.org/address/0x73fddccbb524b04b43eded9c4d20c061de291f07) |
 | wstDIEM/DIEM (77% LLTV) | `0xE762e8011D453853638D1978398df8b1D383A2D9` | 77% | — |
 | wstDIEM/VVV (on-chain TWAP, MOG-544) | `0xC76e2fe5176B432035Def5362023a8DF36bEE94E` | 62.5% | [view](https://basescan.org/address/0xc76e2fe5176b432035def5362023a8df36bee94e) |
+
+> **wstDIEM/USDC and wstDIEM/WETH markets are DEPRECATED** (MOG-542/549): their oracles price wstDIEM collateral with a hardcoded DIEM=$1, which is wrong (DIEM ≈ $1,450). They are unseeded and must not be supplied to or borrowed from. The wstDIEM/VVV market (fully on-chain oracle) is the canonical lending venue.
+>
+> **MOG-549 sweep result:** "$1" appears in two roles. As an *inference entitlement* ($1/DIEM/day — `AgentTGERegistry` tier allocations, `InferenceProduct` capacity) it is CORRECT (Venice's real mechanic; sale price is a separate owner param `pricePerDiemDayUSDC=0.8e6`). As a *collateral market price* it is WRONG — but only the two oracles above + the V4 pool init (MOG-548) used it that way. `FeeRouter`/adapters/`Router` convert at market (`amountOutMinimum:0`), carrying no $1 assumption.
 
 **wstDIEM/VVV market** (created 2026-06-05, deployer v6): ID `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8` — collateral wstDIEM, loan **liquid VVV** `0xacfE6019…`, oracle `0xC76e2fe5…`, IRM `0x46415998…`. Oracle is fully on-chain (`vault rate × Aerodrome DIEM→VVV TWAP`, granularity 2 ≈ ~1h); immutable. **Unseeded — do NOT supply borrowable VVV / open borrows until the liquidation path (wstDIEM→DIEM via Curve→VVV via Aerodrome) has depth (MOG-536); size caps to the ~$6M Aerodrome v2 pool.**
 
