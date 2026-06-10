@@ -1,12 +1,35 @@
 # wstDIEM Liquid Inference Vault — Base Mainnet Addresses
 
-**Last updated:** 2026-06-05 (v5 + v6 deployer + wstDIEM/VVV Morpho market, MOG-544)
+**Last updated:** 2026-06-10 — **v6 LIVE** (clean redeploy, MOG-548). v5 superseded.
 **Chain:** Base mainnet (chain 8453)
 **Owner (Safe):** `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
 
 ---
 
-## Core Stack (v5)
+## Core Stack (v6 — LIVE 2026-06-10, owner Safe) ✅
+
+Clean redeploy via `DeployV6.s.sol`: hardened VVV oracle (granularity 24 + 2h staleness guard), correctly-priced hooked V4 pool (init tick 3017), no deprecated USDC/WETH oracles. Inflation-guarded (0.01 wstDIEM → address(1)). Markets created but UNSEEDED.
+
+| Contract | Address | Basescan |
+|----------|---------|---------|
+| InferenceVault (wstDIEM v6) | `0xe49FA849cB37b0e7A42B2335e333fb99474167ba` | [view](https://basescan.org/address/0xe49fa849cb37b0e7a42b2335e333fb99474167ba) |
+| Router | `0x74ad4532133Ba538945a5371D249560E66CC7c71` | [view](https://basescan.org/address/0x74ad4532133ba538945a5371d249560e66cc7c71) |
+| FeeRouter | `0xa13a6e75d696bAceB38236389eeFD6eCa5FD4ED3` | [view](https://basescan.org/address/0xa13a6e75d696baceb38236389eefd6eca5fd4ed3) |
+| WstDIEMHook (dynamic fee) | `0xf010A31BBD4B501b4232b1945EC18584Ff9B5080` | [view](https://basescan.org/address/0xf010a31bbd4b501b4232b1945ec18584ff9b5080) |
+| WstDiemVvvOracle (62.5% mkt) | `0x9E982637f26aAaAd0bfDBe3c6c1846120C4E5A62` | [view](https://basescan.org/address/0x9e982637f26aaaad0bfdbe3c6c1846120c4e5a62) |
+| WstDiemDiemOracle (86% mkt) | `0xAF29776f93FE0bf21282bF792A52AC212f20F45c` | [view](https://basescan.org/address/0xaf29776f93fe0bf21282bf792a52ac212f20f45c) |
+| Curve DIEM/wstDIEM | `0x21c33a1Bb5f6Eb43563e1fB9e7AA1D4E90C1A0CD` | [view](https://basescan.org/address/0x21c33a1bb5f6eb43563e1fb9e7aa1d4e90c1a0cd) |
+| LiquidityManager (Safe-controlled) | `0xbA4129d3718f32Ed48343d40CfAf6Be9096D086b` | [view](https://basescan.org/address/0xba4129d3718f32ed48343d40cfaf6be9096d086b) |
+| AgentTGERegistry | `0xb13830e7f72Eef167A7F188285feBa5f7C1198Ef` | [view](https://basescan.org/address/0xb13830e7f72eef167a7f188285feba5f7c1198ef) |
+| SurplusStakingWrapper | `0x1A74750eb49c2f6C8C44B9eadaE5C55C7941F271` | [view](https://basescan.org/address/0x1a74750eb49c2f6c8c44b9eadae5c55c7941f271) |
+| InferenceProduct | `0xE43c4B1930531360c3924F72e9395e9c5bC4a5F3` | [view](https://basescan.org/address/0xe43c4b1930531360c3924f72e9395e9c5bc4a5f3) |
+| Treasury (fees, Splits) | `0x2AfE303f4AbD285631872c5A971e5D32fBF1E087` | — |
+
+**v6 Morpho markets** (created, unseeded): wstDIEM/VVV 62.5% (oracle `0x9E98…`) + wstDIEM/DIEM 86% (oracle `0xAF29…`), IRM `0x46415998…`. **V4 pool:** WETH/wstDIEM, DYNAMIC_FEE_FLAG, tickSpacing 60, hook `0xf010…5080`, init tick 3017. Deploy: `docs/vault/V6_DEPLOY_RUNBOOK.md`; deployer `0x428Fac…` (single-use). Post-deploy TODO: Basescan verify, rotate veniceSigner, seed liquidity, cross-repo propagation.
+
+---
+
+## Core Stack (v5 — SUPERSEDED by v6)
 
 | Contract | Address | Basescan |
 |----------|---------|---------|
