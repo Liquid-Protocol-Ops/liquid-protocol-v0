@@ -1,230 +1,169 @@
 # wstDIEM — Fee Structure & Economics
 
-**Last updated:** 2026-06-02  
-**Vault:** `0x4751BA2b09374C1929FC01734a166e3c8cd75810` (InferenceVault v4)  
+**Last updated:** 2026-06-03
+**Vault:** `0xe49FA849cB37b0e7A42B2335e333fb99474167ba` (InferenceVault v6)
 **Chain:** Base mainnet
 
 ---
 
-## What wstDIEM Is
+## Summary
 
-wstDIEM is a liquid, transferrable ERC-4626 wrapper for **sDIEM** (staked DIEM) in the Venice AI ecosystem.
-
-- **Deposit DIEM** → vault calls `DIEM.stake(amount)` → DIEM moves from liquid `balanceOf` into Venice's internal `stakedInfos` position
-- **Receive wstDIEM** → liquid ERC-20 representing a pro-rata share of the vault's total staked DIEM
-- **Exchange rate** increases over time as protocol fees are credited to the vault non-dilutively
-
-Analogous to wstETH (Lido): wstDIEM is the non-rebasing wrapper over a rebasing staked position. The rate of 1 wstDIEM → DIEM rises as yield accrues.
+wstDIEM is a rebasing-rate token. You hold a fixed share count; each share redeems for more DIEM over time as yield accrues through three channels: inference revenue (Venice API), Liquid Protocol fee income, and (optionally) Morpho borrowing interest. There is no performance fee and no withdrawal fee — one entry fee only.
 
 ---
 
-## Fee Structure
+## DIEM Value (≫ $1) & VVV-Denominated Liquidity
 
-### Deposit Fee (InferenceVault)
+DIEM is **not** a $1 stablecoin. Each staked DIEM grants **$1/day of Venice inference in perpetuity**, so it prices like a perpetuity — **~$1,100–1,360 on-chain** (≈89 VVV × $15.29 VVV/USD, 2026-06-05), roughly 1,200× $1.
 
-| TVL | Fee | Recipient |
-|-----|-----|-----------|
-| < $5M (5,000,000 DIEM) | **0.1% (10 bps)** | Treasury (Safe) as extra wstDIEM shares |
-| ≥ $5M | **0.5% (50 bps)** | Treasury (Safe) as extra wstDIEM shares |
+DIEM has **no USD-liquid DEX market**. Its only deep liquidity is **DIEM/VVV on Aerodrome (~$9M total)** — a ~$6M volatile pool plus CL pools (37,340 DIEM supply, ~78% staked, ~3,680 across all pools). Implications:
 
-Fee is taken at deposit time as additional shares minted to treasury — not as a separate DIEM transfer. The depositor gets slightly fewer shares than the raw deposit amount.
-
-**Formula:** `feeShares = convertToShares(assets * feeBps / 10000)` computed pre-deposit so the ratio is well-defined at genesis.
-
-### Withdrawal Fee
-None. No fee on withdrawal — however withdrawals are currently **disabled** (14-day governance timelock + 24h DIEM unstake cooldown). Primary exit path is the V4 wstDIEM/WETH pool or the Curve DIEM/wstDIEM pool.
-
-### Router Fee
-None. The Router (`0xaa266759...`) is a pass-through — it charges no protocol fee on `depositWETH`, `depositVVV`, or `exitToWETH`.
-
-### Curve DIEM/wstDIEM Pool
-Standard Curve StableSwap fee (~0.04%) on swaps. LP earnings go to whoever provides liquidity (protocol-owned LP at launch).
-
-### V4 wstDIEM/WETH Pool
-**0.3% swap fee** on wstDIEM/WETH trades. LP earnings go to whoever provides liquidity (protocol-owned LP at launch, pending Safe 20 WETH deployment).
-
-### Morpho Lending (38.5% LLTV market)
-**No fee to borrowers from the protocol.** Borrowers pay the Adaptive Curve IRM interest rate to DIEM lenders. The protocol is the initial DIEM lender and earns this interest directly.
+- Any DIEM/USD oracle must hop DIEM→VVV→USD. The existing wstDIEM/USDC & wstDIEM/WETH Morpho oracles hardcode `DIEM = $1` and are flagged for fix (**MOG-542**, see `SECURITY_REVIEW.md`).
+- The high-LLTV lending market is denominated in **VVV**: borrow VVV against wstDIEM via `WstDiemVvvOracle` (fully on-chain, no USD feed). VVV is liquid (~$700M mcap, ~$90M/24h vol). See **MOG-544** and the Leverage Loop section below.
+- External liquidity centers on VVV; Curve DIEM/wstDIEM is a thin peg-keeper because raw DIEM is scarce.
 
 ---
 
-## Yield Sources for wstDIEM Holders
+## Fee Layer 1: Deposit Fee
 
-The wstDIEM exchange rate appreciates as DIEM accrues to the vault non-dilutively via `creditDIEM()`. DIEM never leaves the vault — the staked position is strictly monotonically increasing.
+Charged once at deposit. Tiered by vault TVL:
 
-### Primary: Inference Revenue (USDC → DIEM → vault)
+| Fee | Rate | Recipient |
+|-----|------|-----------|
+| Deposit fee | **2.5% (250 bps)**, flat | Treasury (Safe), as wstDIEM shares |
 
-Protocol agents (AUTONOMOPOLY and future deploy-autonomous agents) sell Venice AI inference on Surplus AI for USDC. All USDC earned flows back to the vault — agents are execution infrastructure, not beneficiaries.
+The fee is taken from depositor assets before shares are calculated and minted to the treasury as wstDIEM — the protocol compounds its cut rather than extracting USDC. It does not dilute the exchange rate for existing holders.
 
-**Flow:**
-```
-Agent (own sVVV + own sDIEM) → Surplus AI provider
-        ↓ buyer pays USDC per request
-Agent earns USDC → sends to FeeRouter
-        ↓ FeeRouter.receiveUSDC(amount) [pending implementation]
-Swap USDC → WETH → DIEM (V3 pools)
-        ↓ vault.creditDIEM(diemAmount)
-Vault stakes DIEM, no new shares minted
-        ↓
-wstDIEM exchange rate increases for all holders
-```
-
-**Why this is the primary yield:** Each agent deployed via deploy-autonomous contributes its inference earnings to the vault. As the agent fleet grows, so does the USDC income stream. This scales with the number of agents and requests served, not just with the staking base.
-
-**FeeRouter update needed:** A `receiveUSDC(uint256 amount)` function that swaps USDC → WETH → DIEM via V3 and calls `vault.creditDIEM()`. Currently FeeRouter accepts WETH, VVV, and wstDIEM — USDC support is the next addition.
-
-### Secondary: Protocol Fee Income (Liquid Protocol fees)
-
-The `FeeRouter` receives fee income from Liquid Protocol token launches:
-
-| Input | Path | Outcome |
-|-------|------|---------|
-| **VVV** (Venice token fees) | `receiveVVV()` → batch → `stake()` → sVVV → `mintDiem()` → `vault.creditDIEM()` | Rate increase |
-| **WETH** (swap fees) | `receiveWETH()` → WETH → DIEM (V3) → `vault.creditDIEM()` *(stub, pending)* | Rate increase |
-| **wstDIEM** (direct fees) | `receivewstDIEM()` → Curve VOL | Curve liquidity |
-
-### Tertiary: Morpho Lending Interest
-
-Protocol supplies DIEM to the Morpho 38.5% market. Interest paid by borrowers accrues to the protocol and is credited back to the vault periodically via `creditDIEM()`.
-
-### Quaternary: V4 Pool Swap Fees
-
-0.3% of every wstDIEM/WETH trade goes to the V4 LP position. Collected and reinvested as DIEM → `creditDIEM()` periodically.
-
-### Base Layer: DIEM Native Staking Rewards *(to be verified)*
-
-The DIEM staking contract may distribute additional VVV or DIEM rewards to stakers. If so, these accrue automatically to the vault's position.
+No withdrawal fee. No performance fee. No management fee.
 
 ---
 
-## The Leverage Flywheel
+## Fee Layer 2: Venue Adapter Operator Split
+
+When AntSeed, Surplus, or X402 settle USDC inference revenue, `routeYield()` splits it:
 
 ```
-Agent deposits wstDIEM as Morpho collateral
-        ↓
-Borrows DIEM (up to 38.5% of collateral value)
-        ↓
-Spends DIEM on Venice AI inference (calls DIEM.stake())
-        ↓
-Venice API generates usage → Liquid Protocol earns fees
-        ↓
-FeeRouter.receiveVVV() / receiveWETH() accumulate
-        ↓
-harvestVVV() / harvest() → creditDIEM() to vault
-        ↓
-wstDIEM exchange rate rises → wstDIEM collateral worth more
-        ↓
-Agents can borrow more → more inference → more fees → ...
+100% USDC revenue
+  ├── 90% → swap USDC→WETH→DIEM → vault.creditDIEM()
+  │         raises wstDIEM exchange rate for ALL holders equally
+  └── 10% → swap USDC→WETH→DIEM → vault.creditWstDIEM(adapter)
+            mints wstDIEM to the adapter at current rate
+            adapter is owned by Safe — this is the protocol's inference revenue cut
+```
+
+Default split: 90/10. Operator fee is configurable by Safe up to 20% max.
+
+The 10% adapter cut compounds over time as wstDIEM (not extracted as USDC), so the protocol participates in its own yield growth.
+
+---
+
+## Fee Layer 3: FeeRouter (Liquid Protocol)
+
+The FeeRouter aggregates external fee income from Liquid Protocol token launches. Each token type has a configurable routing mode:
+
+| Mode | Effect |
+|------|--------|
+| `CREDIT_VAULT` | Swap to DIEM via Uniswap V3 → `creditDIEM()` → rate increase for all holders |
+| `CURVE_VOL` | Add to Curve DIEM/wstDIEM LP → earns trading fees |
+| `HOLD` | Accumulate in FeeRouter until owner decides |
+
+WETH earned from Liquid Protocol token swaps is the primary FeeRouter input. As Liquid Protocol volume grows, this directly compounds the wstDIEM exchange rate for all holders.
+
+---
+
+## Fee Layer 4: Morpho Borrowing Interest
+
+The 77% LLTV wstDIEM/DIEM market enables leveraged exposure:
+
+```
+Supply DIEM to Morpho → earn interest from borrowers
+Borrow DIEM against wstDIEM collateral → pay interest
+```
+
+Interest rate is determined by AdaptiveCurveIRM (utilization-based). This creates an additional yield source for DIEM suppliers — separate from the vault exchange rate. Morpho's protocol fee is set by Morpho governance (not by us).
+
+---
+
+## Yield Flow for a wstDIEM Holder
+
+```
+You hold: 1,000 wstDIEM
+          = 1,000 shares
+          redeemable for, say, 1,050 DIEM today
+
+Sources that increase the redemption rate:
+  Venice inference USDC (via adapters)   → 90% to rate
+  Liquid Protocol WETH (via FeeRouter)   → 100% to rate
+  Morpho borrowing interest              → only if you also supply DIEM to Morpho
+
+Sources that go to Safe treasury:
+  Deposit fee (0.1% or 0.5%)
+  Adapter operator cut (10% of inference USDC, held as wstDIEM)
+
+Nothing is extracted from your position once you deposit.
 ```
 
 ---
 
-## Inference Access — Current Architecture Constraints
+## Swap Costs (paid to Uniswap, not the protocol)
 
-**wstDIEM does NOT grant Venice inference access directly.**
+| Path | Fee |
+|------|-----|
+| depositWETH: WETH→DIEM (V3 1% pool) | 1.0% |
+| Adapter yield: USDC→WETH (V3 0.05% pool) | 0.05% |
+| Adapter yield: WETH→DIEM (V3 1% pool) | 1.0% |
+| exitToWETH: wstDIEM→WETH (V4 0.3% pool) | 0.3% |
+| Curve exit: wstDIEM→DIEM (StableSwap) | ~0.04% |
 
-Venice requires sDIEM (staked DIEM) in the **user's own wallet**. The vault holds all staked DIEM under its own contract address. Individual wstDIEM holders cannot delegate or use the vault's Venice inference quota without:
+These are external AMM fees, not protocol revenue. The WETH/DIEM 1% pool fee is the dominant cost for WETH-path depositors and adapter yield routing.
 
-1. Withdrawing from the vault (once withdrawals are enabled — June 15, 2026)
-2. Receiving liquid DIEM
-3. Calling `DIEM.stake(amount)` from their own wallet
-4. Using Venice API with their newly staked position
+---
 
-### Surplus Intelligence via Surplus AI + AntSeed
-
-**DIEM never leaves the vault.** The vault is a pure accumulator — its sDIEM position only grows, never shrinks. Inference selling happens at the agent level, and revenue loops back into the vault via `creditDIEM()`.
-
-[Surplus AI](https://antseed.com) operates a marketplace where Venice AI inference capacity is sold for USDC per request using x402/HTTP 402 payment channels on Base. Providers register their Venice API key and earn USDC from buyers.
-
-**The architecture:**
+## Exchange Rate Formula
 
 ```
-Protocol agents (AUTONOMOPOLY, future agents)
-  ├── own sVVV → Venice API key gate (non-transferrable)
-  └── own sDIEM → Venice inference budget ($1/DIEM/day)
-           ↓ register on Surplus AI
-  Buyers purchase inference → pay USDC per request
-           ↓
-  Agent earns USDC
-           ↓ convert USDC → DIEM (market buy)
-  FeeRouter.creditDIEM(amount) → vault stakes more DIEM
-           ↓
-  wstDIEM exchange rate rises — all holders benefit
-  Vault DIEM position is strictly monotonically increasing
+rate = totalAssets() / totalSupply()
+     = (amountStaked + coolDownAmount - pendingWithdrawalDiem)
+       / totalSupply()
 ```
 
-**The vault's role:** Passive accumulator. Receives DIEM from FeeRouter. Stakes it. Never unstakes it (unless enabling user withdrawals). Venice supports ERC-1271 for contract accounts (confirmed via DiemStakingProxy on Base) — the vault address can be registered as a Venice account directly.
-
-**AUTONOMOPOLY can sell inference on Surplus AI today:**
-- sVVV = 4.5397 → Venice API key already active
-- sDIEM = 9.6 → $9.60/day Venice inference budget
-- Register Venice API key on Surplus AI → earn USDC from buyers
-- USDC → buy DIEM → creditDIEM() → vault rate up
-
-**As more agents launch** (via deploy-autonomous), each agent stakes its own DIEM separately, sells inference on Surplus AI, and compounds back into the vault. The vault TVL grows from agent activity without any central coordination.
+`creditDIEM(amount)` increases `amountStaked` (DIEM is immediately staked) without increasing `totalSupply`, so the rate rises proportionally for all existing shares. `creditWstDIEM(amount, recipient)` mints new shares at the current rate — it does not dilute, it is equivalent to a deposit with no fee.
 
 ---
 
-## Withdrawal Flow (Current)
+## Leverage Loop Economics (Morpho)
 
-| Step | Who | When |
-|------|-----|------|
-| `initiateEnableWithdrawals()` called | Safe (owner) | ✅ done — June 1, 2026 |
-| Governance timelock expires | — | **June 15, 2026 21:41 UTC** |
-| `enableWithdrawals()` called | Anyone | After June 15 |
-| `initiateUnstake(amount)` | Safe (owner) | Must pre-unstake enough DIEM for expected withdrawals |
-| 24h DIEM cooldown | — | Automatic |
-| `completeUnstake()` | Anyone | After cooldown |
-| User redeems wstDIEM for DIEM | User | After `enableWithdrawals()` and sufficient DIEM unstaked |
+`Router.loopDeposit(diemAmount, targetLTV, minWstOut)` turns a single DIEM deposit into a leveraged wstDIEM position in one transaction:
 
-Primary liquidity path for users who don't want to wait: **sell wstDIEM on V4 wstDIEM/WETH pool** or swap via **Curve DIEM/wstDIEM pool**.
+```
+Step 1: Flash borrow X DIEM from Morpho wstDIEM/DIEM market
+Step 2: Deposit (your DIEM + X) into vault → receive wstDIEM
+Step 3: Supply wstDIEM as Morpho collateral on your behalf
+Step 4: Borrow X DIEM to repay flash loan
+```
 
----
+Resulting position for a 1 DIEM deposit at 4x loop:
 
-## Planned Protocol-Owned Liquidity (20 WETH budget)
+| | No loop | 2x loop | 4x loop (77% LTV) |
+|-|---------|---------|-------------------|
+| wstDIEM exposure | 1 DIEM | 2 DIEM | ~4.35 DIEM |
+| Morpho borrow | 0 | 1 DIEM | ~3.35 DIEM |
+| Yield on exposure | 1x rate | 2x rate | 4.35x rate |
+| Liquidation risk | None | Low | Medium (77% LTV) |
 
-All LP positions are protocol-owned (Safe). Gas is negligible on Base.
+The yield earned on the full collateral minus the Morpho borrow rate is the net return. At low borrow utilization the spread is wide; rate risk increases as Morpho fills up.
 
-| Venue | WETH | Mechanism | IL profile | Recoverability |
-|-------|------|-----------|-----------|---------------|
-| **Morpho DIEM supply** | **12 WETH (60%)** | Swap WETH→DIEM via V3, supply to 38.5% market as lender | None — pure lending | High: get DIEM back + interest; convert to WETH when unwinding |
-| **V4 wstDIEM/WETH** (concentrated) | **6 WETH (30%)** | Pair 3 WETH + 3 WETH worth of wstDIEM; concentrated range ±70% | ~3.4% IL at boundary; beyond ±70% position goes single-sided | Good; fees offset modest IL |
-| **Curve DIEM/wstDIEM** | **1 WETH (5%)** | Swap 0.5 WETH→DIEM + 0.5 WETH→DIEM→wstDIEM; add to both sides | Minimal — stableswap near parity | High |
-| **WETH reserve** | **1 WETH (5%)** | Keep liquid in Safe | None | 100% |
-
-### V4 Concentrated Range Parameters
-
-- **tickLower:** `-9,900` (−70% from current price; 1 WETH = 0.37 wstDIEM)
-- **tickUpper:** `7,440` (+70% from current price; 1 WETH = 2.10 wstDIEM)
-- **Current tick:** 2,140 (1 WETH ≈ 1.24 wstDIEM at deployment)
-- **Fee tier:** 0.3%
-- **IL at boundary:** ~3.4% (vs ~5.7% for full-range at same move)
-- **Re-ranging:** Free on Base — re-range position if price exits the band
-
-When WETH price rises more than 70% vs wstDIEM, the LP becomes 100% wstDIEM (WETH fully sold). When WETH drops more than 70% vs wstDIEM, the LP becomes 100% WETH (wstDIEM fully bought). In both cases the position is outside range and earns no fees until re-ranged.
-
-### Surplus Intelligence — Future Work
-
-The Morpho interest earned (12 WETH → DIEM → lent at X% APY) could be auctioned daily to inference buyers for USDC. This requires a keeper contract that:
-1. Collects Morpho accrued interest (DIEM)
-2. Auctions DIEM to buyers who pay USDC
-3. Distributes USDC pro-rata to wstDIEM holders, or reinvests as `creditDIEM()`
-
-Not implemented. Current vault is yield-accumulation only.
+`Router.unloopDeposit()` exits via flash repay + Curve wstDIEM→DIEM swap, unwinding in one transaction.
 
 ---
 
-## Deployed Contracts Summary (v4, 2026-06-01)
+## Agent Denomination
 
-See `docs/vault/mainnet-addresses.md` for the full canonical address list. Key contracts:
+wstDIEM is the target denomination for autonomous agent pricing:
 
-| Contract | Address | Role |
-|----------|---------|------|
-| `InferenceVault` (wstDIEM) | `0x4751BA2b09374C1929FC01734a166e3c8cd75810` | Core ERC-4626 vault |
-| `Router` v8 | `0x6f5FF03a91cb1703B7CB8d85572f990bcB04273D` | Deposit paths: WETH, VVV, exitToWETH |
-| `FeeRouter` | `0x21fe048B10dC9bED2Ee0Ae76724C627CA7F35F61` | Fee income routing to vault |
-| `SurplusStakingWrapper` | `0xB0f9c45dAacD89F0d90cbE0E65d0dA20fa1ac415` | Deposit wrapper with referral tracking |
-| `AgentTGERegistry` | `0x49be7fE8D661b892AC0461818a5C714574e83998` | Agent lifecycle and dormancy tracking |
-| Curve DIEM/wstDIEM | `0x39A4b4779C71E1A18d500627639682c9583Ee86f` | StableSwap exit pool |
+- **Capacity:** 1 wstDIEM entitles the holder to Venice inference proportional to the vault's total sDIEM stake divided by total wstDIEM supply
+- **Compounding:** An agent holding wstDIEM earns rate appreciation automatically — no claiming, no restaking
+- **Alignment:** Agents that route USDC revenue through adapters increase the exchange rate, making their own wstDIEM holdings more valuable
+- **Collateral:** Agents can borrow DIEM against wstDIEM on Morpho to fund operations without liquidating their staked position
 
-> All v1 and v2 contracts (vault `0xa6076...`, FeeRouter `0x67fA...`, Router v6 `0xaa266...`) are deprecated. Do not use.
+The effective "cost" of Venice inference in DIEM terms falls over time as the vault grows — wstDIEM buys more inference capacity per DIEM invested each period.

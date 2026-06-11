@@ -36,7 +36,9 @@ contract PhaseEIntegrationTest is Test {
         curvePool = d.deployPool();
         vm.stopPrank();
 
-        feeRouter = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0));
+        feeRouter = new FeeRouter(
+            address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0), address(this)
+        );
 
         vm.prank(deployer);
         vault.setVenueAdapter(address(feeRouter), true);

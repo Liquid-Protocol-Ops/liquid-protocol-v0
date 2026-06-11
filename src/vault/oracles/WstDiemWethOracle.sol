@@ -41,6 +41,11 @@ interface IChainlinkAggregator {
 //
 // Chainlink ETH/USD on Base mainnet: 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb7
 // Staleness threshold: 1 hour (Chainlink heartbeat is 20 min on Base)
+/// @custom:deprecated DIEM has no USD-liquid market; DIEM != $1 (it trades ~$1,450 as a
+/// Venice inference perpetuity). This oracle prices wstDIEM collateral via a hardcoded
+/// DIEM = $1 term, so it mis-prices the collateral and its Morpho market is unseeded. DO
+/// NOT supply or borrow. Canonical lending venue: wstDIEM/VVV (WstDiemVvvOracle, MOG-544).
+/// See MOG-542 / MOG-549.
 contract WstDiemWethOracle {
     IInferenceVault public immutable vault;
     IChainlinkAggregator public immutable ethUsdFeed;

@@ -21,7 +21,7 @@ contract SurplusStakingWrapper is Ownable {
 
     error CurvePoolNotSet();
 
-    constructor(address _vault, address _curvePool) Ownable(msg.sender) {
+    constructor(address _vault, address _curvePool, address initialOwner) Ownable(initialOwner) {
         vault = IInferenceVault(_vault);
         curvePool = _curvePool;
     }

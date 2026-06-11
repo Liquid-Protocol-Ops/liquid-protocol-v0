@@ -96,6 +96,8 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     event BatchSettled(uint32 indexed batchId, uint256 diemTotal);
     event Claimed(uint256 indexed requestId, address indexed receiver, uint256 diem);
     event DIEMCredited(address indexed adapter, uint256 amount);
+    event DepositFeeBpsSet(uint256 bps);
+    event YieldFeeBpsSet(uint256 bps);
     event WstDIEMCredited(
         address indexed source, address indexed recipient, uint256 diem, uint256 shares
     );
@@ -107,9 +109,11 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     bytes4 private constant ERC1271_MAGIC = 0x1626ba7e;
     uint32 public constant MAX_BATCH_SIZE = 50;
     uint64 public constant MAX_BATCH_OPEN_SECS = 7 days;
-    uint256 public constant TVL_FEE_THRESHOLD = 5_000_000e18;
-    uint256 public constant FEE_LOW_BPS = 10;
-    uint256 public constant FEE_HIGH_BPS = 50;
+    uint256 public constant MAX_DEPOSIT_FEE_BPS = 1000; // 10% hard cap
+    uint256 public constant MAX_YIELD_FEE_BPS = 2000; // 20% hard cap
+
+    uint256 public depositFeeBps = 250; // 2.5% on deposits, owner-updatable
+    uint256 public yieldFeeBps = 500; // 5% on creditDIEM revenue, owner-updatable
 
     // ─── Signer / adapter / treasury ─────────────────────────────────────────
     /// @notice Hot key that signs Venice API key challenges. Separate from owner()
@@ -240,7 +244,7 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
 
     // ─── Deposit fee ─────────────────────────────────────────────────────────
     function currentDepositFeeBps() public view returns (uint256) {
-        return totalAssets() < TVL_FEE_THRESHOLD ? FEE_LOW_BPS : FEE_HIGH_BPS;
+        return depositFeeBps;
     }
 
     function previewDeposit(uint256 assets) public view override returns (uint256) {
@@ -456,7 +460,17 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     ///         Called by venue adapters after converting inference USDC → DIEM.
     function creditDIEM(uint256 amount) external nonReentrant {
         if (!isVenueAdapter[msg.sender]) revert NotVenueAdapter();
+
+        // Snapshot fee shares at current rate BEFORE the incoming DIEM changes totalAssets.
+        // This mirrors creditWstDIEM's pre-transfer snapshot to avoid rate manipulation.
+        uint256 feeShares;
+        if (yieldFeeBps > 0 && treasury != address(0)) {
+            uint256 feeAmount = amount.mulDiv(yieldFeeBps, 10_000, Math.Rounding.Floor);
+            if (feeAmount > 0) feeShares = _convertToShares(feeAmount, Math.Rounding.Floor);
+        }
+
         IERC20(asset()).safeTransferFrom(msg.sender, address(this), amount);
+        if (feeShares > 0) _mint(treasury, feeShares);
         IDIEM(asset()).stake(amount);
         emit DIEMCredited(msg.sender, amount);
     }
@@ -522,6 +536,18 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
 
     function setTreasury(address _treasury) external onlyOwner {
         treasury = _treasury;
+    }
+
+    function setDepositFeeBps(uint256 bps) external onlyOwner {
+        require(bps <= MAX_DEPOSIT_FEE_BPS, "exceeds 10% cap");
+        depositFeeBps = bps;
+        emit DepositFeeBpsSet(bps);
+    }
+
+    function setYieldFeeBps(uint256 bps) external onlyOwner {
+        require(bps <= MAX_YIELD_FEE_BPS, "exceeds 20% cap");
+        yieldFeeBps = bps;
+        emit YieldFeeBpsSet(bps);
     }
 
     function setMaxTotalStake(uint256 cap) external onlyOwner {

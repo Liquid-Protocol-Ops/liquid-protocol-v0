@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {IInferenceVault} from "./interfaces/IInferenceVault.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {
     BeforeSwapDelta,
     BeforeSwapDeltaLibrary
 } from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {BaseHook} from "@uniswap/v4-periphery/src/utils/BaseHook.sol";
-// LPFeeLibrary imported when WP-5 adds OVERRIDE_FEE_FLAG usage:
-// import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
-import {IInferenceVault} from "./interfaces/IInferenceVault.sol";
 
 /// @title WstDIEMHook
 /// @notice Uniswap V4 hook for the wstDIEM/WETH pool.
@@ -20,8 +19,9 @@ import {IInferenceVault} from "./interfaces/IInferenceVault.sol";
 ///         always returns FEE_NORMAL so the hook flags and permissions are correct.
 ///
 /// @dev Pool MUST be initialised with LPFeeLibrary.DYNAMIC_FEE_FLAG as the fee tier.
-///      To override the LP fee per-swap the returned uint24 must be OR'd with
-///      LPFeeLibrary.OVERRIDE_FEE_FLAG — not done here yet (TODO WP-5).
+///      The fee returned from _beforeSwap is OR'd with LPFeeLibrary.OVERRIDE_FEE_FLAG
+///      so V4 actually applies it per-swap. What remains for WP-5 is the NAV/TWAP-based
+///      fee selection in _currentFee() (currently a stub returning FEE_NORMAL).
 ///
 ///      Hook address lower bits must satisfy:
 ///          BEFORE_SWAP_FLAG      (bit 7)  = 0x0080
@@ -77,18 +77,18 @@ contract WstDIEMHook is BaseHook {
         return BaseHook.afterInitialize.selector;
     }
 
-    /// @dev Computes the dynamic fee for every swap.
-    ///      TODO WP-5: compare vault.convertToAssets(1e18) against pool TWAP;
-    ///      return FEE_HIGH when deviation exceeds 200 bps, FEE_NORMAL otherwise.
-    ///      The fee override flag (LPFeeLibrary.OVERRIDE_FEE_FLAG) must be OR'd in
-    ///      once the pool is created with DYNAMIC_FEE_FLAG.
+    /// @dev Computes the dynamic fee for every swap. The returned fee is OR'd with
+    ///      LPFeeLibrary.OVERRIDE_FEE_FLAG so V4 applies it on the DYNAMIC_FEE_FLAG pool.
+    ///      TODO WP-5: derive the fee *value* from NAV vs pool TWAP — compare
+    ///      vault.convertToAssets(1e18) against pool TWAP and return FEE_HIGH when
+    ///      deviation exceeds 200 bps, FEE_NORMAL otherwise.
     function _beforeSwap(
         address,
         PoolKey calldata,
         IPoolManager.SwapParams calldata,
         bytes calldata
     ) internal pure override returns (bytes4, BeforeSwapDelta, uint24) {
-        uint24 fee = _currentFee();
+        uint24 fee = _currentFee() | LPFeeLibrary.OVERRIDE_FEE_FLAG;
         return (BaseHook.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, fee);
     }
 

@@ -21,7 +21,9 @@ contract FeeRouterTest is Test {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
         vault =
             new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
-        router = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0));
+        router = new FeeRouter(
+            address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0), address(this)
+        );
         vault.setVenueAdapter(address(router), true);
     }
 

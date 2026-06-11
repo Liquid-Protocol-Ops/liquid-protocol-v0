@@ -29,7 +29,9 @@ contract PhaseCIntegrationTest is Test {
         curvePool = d.deployPool();
         vm.stopPrank();
 
-        feeRouter = new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0));
+        feeRouter = new FeeRouter(
+            address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0), address(this)
+        );
         vault.setVenueAdapter(address(feeRouter), true);
 
         // Seed Curve pool with initial liquidity so add_liquidity(one-sided) works

@@ -16,3 +16,8 @@ docs/src/
 
 .DS_Store
 .claude/settings.local.json
+
+# Claude Code internal files
+.claude/
+.agents/
+skills-lock.json

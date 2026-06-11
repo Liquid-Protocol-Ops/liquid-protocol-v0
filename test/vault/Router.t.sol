@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {InferenceVault} from "../../src/vault/InferenceVault.sol";
 import {Router} from "../../src/vault/Router.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {Test} from "forge-std/Test.sol";
 
 contract RouterTest is Test {
@@ -22,7 +23,7 @@ contract RouterTest is Test {
         vm.createSelectFork(vm.envString("BASE_RPC_URL"));
         vault =
             new InferenceVault(DIEM, makeAddr("treasury"), makeAddr("veniceSigner"), address(this));
-        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
+        router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0), address(this));
 
         deal(DIEM, alice, 1000e18);
         deal(WETH, alice, 10e18);
@@ -116,5 +117,26 @@ contract RouterTest is Test {
         vm.prank(alice);
         vm.expectRevert();
         router.setV4Pool(makeAddr("pool"));
+    }
+
+    // ── setSwapFees / wstDiemV4Hooks ─────────────────────────────────────
+
+    function test_setSwapFees_allowsDynamicFlagAndHooks() public {
+        address hookAddr = makeAddr("hook");
+        vm.prank(router.owner());
+        router.setSwapFees(10_000, LPFeeLibrary.DYNAMIC_FEE_FLAG, 60, hookAddr);
+        assertEq(router.wstDiemV4Fee(), LPFeeLibrary.DYNAMIC_FEE_FLAG);
+        assertEq(router.wstDiemV4Hooks(), hookAddr);
+        assertEq(router.wstDiemV4TickSpacing(), int24(60));
+    }
+
+    function test_setSwapFees_rejectsZeroV4Fee() public {
+        vm.prank(router.owner());
+        vm.expectRevert(bytes("invalid V4 fee"));
+        router.setSwapFees(10_000, 0, 60, address(0));
+    }
+
+    function test_wstDiemV4Hooks_defaultsToZero() public view {
+        assertEq(router.wstDiemV4Hooks(), address(0));
     }
 }

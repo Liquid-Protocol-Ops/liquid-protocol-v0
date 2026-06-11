@@ -23,6 +23,11 @@ interface IInferenceVault {
 // Verification (fresh vault, rate = 1.0):
 //   price() = 1e18 * 1e6 = 1e24
 //   1 wstDIEM (1e18 units) -> 1e18 * 1e24 / 1e36 = 1e6 USDC units = 1 USDC ✓
+/// @custom:deprecated DIEM has no USD-liquid market; DIEM != $1 (it trades ~$1,450 as a
+/// Venice inference perpetuity). This oracle prices wstDIEM collateral with a hardcoded
+/// DIEM = $1, so it mis-prices the collateral and its Morpho market is unseeded. DO NOT
+/// supply or borrow. Canonical lending venue: wstDIEM/VVV (WstDiemVvvOracle, MOG-544).
+/// See MOG-542 / MOG-549.
 contract WstDiemUsdcOracle {
     IInferenceVault public immutable vault;
 

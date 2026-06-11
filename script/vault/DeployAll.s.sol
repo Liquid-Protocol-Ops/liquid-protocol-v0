@@ -93,12 +93,12 @@ contract DeployAll is Script {
 
         // Phase C: FeeRouter
         FeeRouter feeRouter =
-            new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0));
+            new FeeRouter(address(vault), WETH, VVV, VVV_STAKING, curvePool, address(0), deployer);
         console.log("FeeRouter:", address(feeRouter));
         vault.setVenueAdapter(address(feeRouter), true);
 
         // Phase C: Router
-        Router router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0));
+        Router router = new Router(address(vault), WETH, VVV, VVV_STAKING, address(0), deployer);
         // Router no longer manages curvePool; FeeRouter handles Curve VOL.
         console.log("Router:", address(router));
 
@@ -107,7 +107,8 @@ contract DeployAll is Script {
         console.log("AgentTGERegistry:", address(registry));
 
         // Phase D: SurplusStakingWrapper
-        SurplusStakingWrapper wrapper = new SurplusStakingWrapper(address(vault), curvePool);
+        SurplusStakingWrapper wrapper =
+            new SurplusStakingWrapper(address(vault), curvePool, deployer);
         console.log("SurplusStakingWrapper:", address(wrapper));
 
         // Phase D: InferenceProduct — on-chain registry for selling Venice inference capacity

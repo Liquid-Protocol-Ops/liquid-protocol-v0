@@ -226,7 +226,8 @@ contract LeverageRouterTest is Test {
             makeAddr("weth"),
             makeAddr("vvv"),
             makeAddr("vvvStaking"),
-            address(morpho)
+            address(morpho),
+            address(this)
         );
 
         // 5. Configure Router.
@@ -267,7 +268,7 @@ contract LeverageRouterTest is Test {
         uint256 diemIn = 1000e18;
         // totalDiem = 1000 / (1 - 0.70) = 3333.33...
         uint256 totalDiem = diemIn * 1e18 / (1e18 - TARGET_LTV);
-        // expectedWst: vault applies 10 bps deposit fee on fresh vault
+        // expectedWst: vault applies 250 bps deposit fee
         uint256 expectedWst = vault.previewDeposit(totalDiem);
 
         vm.prank(alice);
@@ -305,7 +306,7 @@ contract LeverageRouterTest is Test {
     }
 
     /// @notice Realized LTV = borrow / collateralValue is close to targetLTV.
-    ///         Uses approxEqRel to tolerate the vault deposit fee (10 bps).
+    ///         Uses approxEqRel to tolerate the vault deposit fee (250 bps).
     function test_loopDeposit_targetLTVRespected() public {
         uint256 diemIn = 1000e18;
 
@@ -319,9 +320,13 @@ contract LeverageRouterTest is Test {
         // realizedLTV = borrow / col
         uint256 realizedLTV = borrow * 1e18 / col;
 
-        // Target 70% LTV. Deposit fee reduces collateral slightly → realized LTV
-        // is slightly higher than target. Allow 2% relative tolerance.
-        assertApproxEqRel(realizedLTV, TARGET_LTV, 0.02e18, "LTV mismatch");
+        // loopDeposit routes equity+flash through vault.deposit, which charges
+        // depositFeeBps. Post-fee collateral shrinks, so realized LTV =
+        // target / (1 - depositFee). At the 2.5% fee a 70% target realizes ~71.8%,
+        // held safely below the 75% LLTV by loopDeposit's fee-aware headroom guard.
+        uint256 feeBps = vault.currentDepositFeeBps();
+        uint256 expectedLTV = TARGET_LTV * 10_000 / (10_000 - feeBps);
+        assertApproxEqRel(realizedLTV, expectedLTV, 0.005e18, "LTV mismatch");
     }
 
     /// @notice minWstOut slippage guard reverts when set above actual output.
@@ -447,7 +452,8 @@ contract LeverageRouterTest is Test {
             makeAddr("weth2"),
             makeAddr("vvv2"),
             makeAddr("vvvStaking2"),
-            address(morpho)
+            address(morpho),
+            address(this)
         );
         diem.mint(alice, 1000e18);
         vm.prank(alice);

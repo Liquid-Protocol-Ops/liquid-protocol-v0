@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+import {LiquidityManager} from "../../src/vault/LiquidityManager.sol";
 import {Script, console} from "forge-std/Script.sol";
 
 // SafeManageV4LP — persistent LiquidityManager with add, remove, and fee-collect.
@@ -41,38 +42,6 @@ import {Script, console} from "forge-std/Script.sol";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
-struct PoolKey {
-    address currency0;
-    address currency1;
-    uint24 fee;
-    int24 tickSpacing;
-    address hooks;
-}
-
-interface IPoolManager {
-    struct ModifyLiquidityParams {
-        int24 tickLower;
-        int24 tickUpper;
-        int256 liquidityDelta;
-        bytes32 salt;
-    }
-    function unlock(bytes calldata data) external returns (bytes memory);
-    function modifyLiquidity(
-        PoolKey calldata key,
-        ModifyLiquidityParams calldata params,
-        bytes calldata hookData
-    ) external returns (int256 callerDelta, int256 feesAccrued);
-    function sync(address currency) external;
-    function settle() external payable returns (uint256 paid);
-    function take(address currency, address to, uint256 amount) external;
-}
-
-interface IERC20 {
-    function approve(address spender, uint256 amount) external returns (bool);
-    function transfer(address to, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-}
-
 interface ISafe {
     function getTransactionHash(
         address to,
@@ -101,161 +70,17 @@ interface ISafe {
     function nonce() external view returns (uint256);
 }
 
-// ─── LiquidityManager ─────────────────────────────────────────────────────────
-//
-// Persistent contract. Only `safe` can call mutating functions.
-// The V4 LP position is owned by this contract's address.
-// To remove or collect: the Safe calls this contract; this contract calls PoolManager.
-//
-// Pool: WETH / wstDIEM, fee=0.3%, tickSpacing=60
-// Position: tickLower=62160 (~$500/ETH), tickUpper=92100 (~$10,000/ETH)
-//
-contract LiquidityManager {
-    address public immutable poolManager;
-    address public immutable weth;
-    address public immutable wstDIEM;
-    address public immutable safe;
-
-    int24 constant TICK_LOWER = 62_160;
-    int24 constant TICK_UPPER = 92_100;
-
-    enum Action {
-        ADD,
-        REMOVE,
-        COLLECT_FEES
-    }
-
-    struct CallbackData {
-        PoolKey key;
-        Action action;
-        uint128 liquidity;
-    }
-
-    constructor(address _pm, address _weth, address _wstDIEM, address _safe) {
-        poolManager = _pm;
-        weth = _weth;
-        wstDIEM = _wstDIEM;
-        safe = _safe;
-    }
-
-    modifier onlySafe() {
-        require(msg.sender == safe, "only Safe");
-        _;
-    }
-
-    // ── Add liquidity ──
-    // Safe must pre-send WETH + wstDIEM to this contract before calling.
-    // Any unused tokens are returned to Safe after the unlock.
-    function addLiquidity(uint128 liquidity) external onlySafe {
-        _unlock(Action.ADD, liquidity);
-        _returnExcess();
-    }
-
-    // ── Remove liquidity ──
-    // Removes `liquidity` units from the position and sends WETH + wstDIEM to Safe.
-    function removeLiquidity(uint128 liquidity) external onlySafe {
-        _unlock(Action.REMOVE, liquidity);
-        _returnExcess();
-    }
-
-    // ── Collect accrued fees (delta=0 modifyLiquidity) ──
-    // Sends any accrued WETH + wstDIEM fees to Safe.
-    function collectFees() external onlySafe {
-        _unlock(Action.COLLECT_FEES, 0);
-        _returnExcess();
-    }
-
-    // ── Grant operator access to another address ──
-    // This is the function the old LiquidityHelper was missing.
-    // Call this before deploying a successor manager so the new one can take over.
-    function grantOperator(address operator, bool allowed) external onlySafe {
-        // V4 PoolManager allowOperator — grants `operator` the ability to modify
-        // positions owned by this contract.
-        (bool ok,) = poolManager.call(
-            abi.encodeWithSignature("allowOperator(address,bool)", operator, allowed)
-        );
-        require(ok, "allowOperator failed");
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-
-    function _unlock(Action action, uint128 liquidity) internal {
-        PoolKey memory key = PoolKey({
-            currency0: weth, currency1: wstDIEM, fee: 3000, tickSpacing: 60, hooks: address(0)
-        });
-        IERC20(weth).approve(poolManager, type(uint256).max);
-        IERC20(wstDIEM).approve(poolManager, type(uint256).max);
-        bytes memory callbackData =
-            abi.encode(CallbackData({key: key, action: action, liquidity: liquidity}));
-        IPoolManager(poolManager).unlock(callbackData);
-    }
-
-    // Called by PoolManager during unlock.
-    function unlockCallback(bytes calldata data) external returns (bytes memory) {
-        require(msg.sender == poolManager, "only PM");
-        CallbackData memory cd = abi.decode(data, (CallbackData));
-
-        int256 liquidityDelta;
-        if (cd.action == Action.ADD) {
-            liquidityDelta = int256(uint256(cd.liquidity));
-        } else if (cd.action == Action.REMOVE) {
-            liquidityDelta = -int256(uint256(cd.liquidity));
-        } else {
-            liquidityDelta = 0; // COLLECT_FEES: touch position, collect accrued fees
-        }
-
-        IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: TICK_LOWER,
-            tickUpper: TICK_UPPER,
-            liquidityDelta: liquidityDelta,
-            salt: bytes32(0)
-        });
-
-        (int256 callerDelta,) = IPoolManager(poolManager).modifyLiquidity(cd.key, params, "");
-
-        int128 amount0 = int128(callerDelta >> 128);
-        int128 amount1 = int128(callerDelta);
-
-        // PoolManager owes us tokens (remove or fee credit) → take
-        if (amount0 > 0) {
-            IPoolManager(poolManager)
-                .take(cd.key.currency0, address(this), uint256(uint128(amount0)));
-        }
-        if (amount1 > 0) {
-            IPoolManager(poolManager)
-                .take(cd.key.currency1, address(this), uint256(uint128(amount1)));
-        }
-
-        // We owe PoolManager tokens (adding liquidity) → sync + transfer + settle
-        if (amount0 < 0) {
-            IPoolManager(poolManager).sync(cd.key.currency0);
-            IERC20(cd.key.currency0).transfer(poolManager, uint256(uint128(-amount0)));
-            IPoolManager(poolManager).settle();
-        }
-        if (amount1 < 0) {
-            IPoolManager(poolManager).sync(cd.key.currency1);
-            IERC20(cd.key.currency1).transfer(poolManager, uint256(uint128(-amount1)));
-            IPoolManager(poolManager).settle();
-        }
-
-        return "";
-    }
-
-    function _returnExcess() internal {
-        uint256 w = IERC20(weth).balanceOf(address(this));
-        uint256 ws = IERC20(wstDIEM).balanceOf(address(this));
-        if (w > 0) IERC20(weth).transfer(safe, w);
-        if (ws > 0) IERC20(wstDIEM).transfer(safe, ws);
-    }
-}
-
 // ─── Script ───────────────────────────────────────────────────────────────────
 
 contract SafeManageV4LP is Script {
     address constant SAFE = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
     address constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
-    address constant WSTDIEM = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
+    address constant WSTDIEM = 0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D; // v5
     address constant WETH = 0x4200000000000000000000000000000000000006;
+    uint24 constant DYNAMIC_FEE = 0x800000;
+    int24 constant TICK_SPACING = 60;
+    int24 constant TICK_LOWER = -887_220; // full range
+    int24 constant TICK_UPPER = 887_220;
     address constant ZERO = address(0);
 
     uint256 sk1;
@@ -263,9 +88,14 @@ contract SafeManageV4LP is Script {
 
     // ── deployManager ──────────────────────────────────────────────────────
     // Run once. Save the printed address as MANAGER for subsequent calls.
+    // Requires WSTDIEM_HOOK env var (deployed in Task 5) and EXECUTOR_PK.
     function deployManager() external {
+        address hook = vm.envAddress("WSTDIEM_HOOK"); // deployed in Task 5
+        (address c0, address c1) = WETH < WSTDIEM ? (WETH, WSTDIEM) : (WSTDIEM, WETH);
         vm.startBroadcast(vm.envUint("EXECUTOR_PK"));
-        LiquidityManager mgr = new LiquidityManager(POOL_MANAGER, WETH, WSTDIEM, SAFE);
+        LiquidityManager mgr = new LiquidityManager(
+            POOL_MANAGER, c0, c1, DYNAMIC_FEE, TICK_SPACING, TICK_LOWER, TICK_UPPER, hook, SAFE
+        );
         console.log("LiquidityManager deployed:", address(mgr));
         console.log("Save as MANAGER env var for addLiquidity/removeLiquidity/collectFees.");
         vm.stopBroadcast();
