@@ -200,7 +200,8 @@ contract InferenceVaultTest is Test {
         vault.deposit(100e18, alice);
         uint256 supplyBefore = vault.totalSupply();
         uint256 creditAmount = 10e18;
-        uint256 expectedFeeShares = vault.convertToShares(creditAmount * vault.yieldFeeBps() / 10_000);
+        uint256 expectedFeeShares =
+            vault.convertToShares(creditAmount * vault.yieldFeeBps() / 10_000);
         vm.prank(venueAdapter);
         vault.creditDIEM(creditAmount);
         assertApproxEqAbs(vault.totalSupply() - supplyBefore, expectedFeeShares, 1e12);

@@ -80,8 +80,12 @@ contract DeployV6Adapters is Script {
         sur.transferOwnership(SAFE);
 
         // 4. Register on the vault (Safe-owned) so they may creditDIEM().
-        _execSafe(VAULT, abi.encodeWithSignature("setVenueAdapter(address,bool)", address(ant), true));
-        _execSafe(VAULT, abi.encodeWithSignature("setVenueAdapter(address,bool)", address(sur), true));
+        _execSafe(
+            VAULT, abi.encodeWithSignature("setVenueAdapter(address,bool)", address(ant), true)
+        );
+        _execSafe(
+            VAULT, abi.encodeWithSignature("setVenueAdapter(address,bool)", address(sur), true)
+        );
 
         vm.stopBroadcast();
 
@@ -102,6 +106,9 @@ contract DeployV6Adapters is Script {
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(lower, txHash);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(higher, txHash);
         bytes memory sigs = abi.encodePacked(r1, s1, v1, r2, s2, v2);
-        require(safe_.execTransaction(to, 0, data, 0, 0, 0, 0, ZERO, payable(ZERO), sigs), "SafeTx failed");
+        require(
+            safe_.execTransaction(to, 0, data, 0, 0, 0, 0, ZERO, payable(ZERO), sigs),
+            "SafeTx failed"
+        );
     }
 }

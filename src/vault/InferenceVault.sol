@@ -109,11 +109,11 @@ contract InferenceVault is ERC4626, Ownable, Pausable, ReentrancyGuard, IERC1271
     bytes4 private constant ERC1271_MAGIC = 0x1626ba7e;
     uint32 public constant MAX_BATCH_SIZE = 50;
     uint64 public constant MAX_BATCH_OPEN_SECS = 7 days;
-    uint256 public constant MAX_DEPOSIT_FEE_BPS = 1_000;  // 10% hard cap
-    uint256 public constant MAX_YIELD_FEE_BPS   = 2_000;  // 20% hard cap
+    uint256 public constant MAX_DEPOSIT_FEE_BPS = 1000; // 10% hard cap
+    uint256 public constant MAX_YIELD_FEE_BPS = 2000; // 20% hard cap
 
-    uint256 public depositFeeBps = 250;   // 2.5% on deposits, owner-updatable
-    uint256 public yieldFeeBps   = 500;   // 5% on creditDIEM revenue, owner-updatable
+    uint256 public depositFeeBps = 250; // 2.5% on deposits, owner-updatable
+    uint256 public yieldFeeBps = 500; // 5% on creditDIEM revenue, owner-updatable
 
     // ─── Signer / adapter / treasury ─────────────────────────────────────────
     /// @notice Hot key that signs Venice API key challenges. Separate from owner()
