@@ -8,13 +8,15 @@
 
 ## Outcome
 
-34 raw findings → 33 deduped → **3 confirmed** (1 High, 2 Medium). **No Critical**, and no principal-loss or share-accounting issues survived verification. All require contract changes (v6 redeploy).
+34 raw findings → 33 deduped → **3 confirmed** (1 High, 2 Medium). **No Critical**, and no principal-loss or share-accounting issues survived verification. The v6 redeploy **addresses the two Mediums**; the **High is risk-accepted via access control, not code-fixed** (see deployed-status column) — implement `minDiemOut` before scaling external TVL.
 
-| Sev | Contract | Finding | Fix |
-|-----|----------|---------|-----|
-| High | BaseInferenceAdapter (`routeYield`) | Swaps whole USDC balance USDC→WETH→DIEM with `amountOutMinimum = 0`, no oracle — full sandwich of accrued yield | Caller-supplied `minDiemOut` + private relay — **MOG-541** |
-| Medium | WstDiem{Usdc,Weth}Oracle | Hardcode `DIEM = $1`; DIEM actually ≈ $1,200 (perpetuity). Mis-prices Morpho collateral → bad debt / unusable markets | Real DIEM/USD source, or VVV-denominated market — **MOG-542 / MOG-544** |
-| Medium | AgentTGERegistry | `recordFeeReceipt()` never wired into FeeRouter → every agent markable-dormant 30d after registration; `markDormant` permissionless | Gate `markDormant` + keeper-driven refresh — **MOG-543** |
+> **Status column reflects the *deployed* v6 code (audited 2026-06-11), not just the recommendation.** Verify against the live verified source on Basescan.
+
+| Sev | Contract | Finding | Recommended fix | v6 deployed status |
+|-----|----------|---------|-----------------|--------------------|
+| High | BaseInferenceAdapter (`routeYield`) | Swaps whole USDC balance USDC→WETH→DIEM with `amountOutMinimum = 0`, no oracle — full sandwich of accrued yield | Caller-supplied `minDiemOut` + private relay — **MOG-541** | ⚠️ **NOT code-fixed.** `amountOutMinimum` is still `0`. Mitigated only by `onlyOperator` (owner/keeper) calling, with the operator expected to check pricing off-chain and submit via a private relay. Residual MEV/sandwich risk remains if the operator's tx reaches the public mempool. Acceptable at today's dust-scale yield; **implement `minDiemOut` before TVL scales.** |
+| Medium | WstDiem{Usdc,Weth}Oracle | Hardcode `DIEM = $1`; DIEM actually ≈ $1,200 (perpetuity). Mis-prices Morpho collateral → bad debt / unusable markets | Real DIEM/USD source, or VVV-denominated market — **MOG-542 / MOG-544** | ✅ **Addressed.** USD oracles formally deprecated (MOG-549); `WstDiemVvvOracle` (fully on-chain, no USD feed) is canonical; the mispriced USD/WETH markets are left unseeded. |
+| Medium | AgentTGERegistry | `recordFeeReceipt()` never wired into FeeRouter → every agent markable-dormant 30d after registration; `markDormant` permissionless | Gate `markDormant` + keeper-driven refresh — **MOG-543** | ◑ **Partial.** `recordFeeReceipt()` is now gated to the FeeRouter and refreshes the dormancy timer (keeper-driven refresh landed). `markDormant()` remains permissionless but only succeeds ≥30d after the last fee receipt, so an active fee-earning agent can't be falsely marked dormant. |
 
 ## DIEM value & liquidity (on-chain, 2026-06-05)
 
