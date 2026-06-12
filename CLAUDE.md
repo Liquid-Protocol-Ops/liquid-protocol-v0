@@ -64,7 +64,7 @@ ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM i
 
 | Contract | Role |
 |----------|------|
-| `InferenceVault` | ERC-4626 vault. Deposit DIEM → stake via `DIEM.stake()` → mint wstDIEM. `creditDIEM()` accrues yield non-dilutively (no new shares). Withdrawals gated behind 14-day timelock + 24h DIEM unstake cooldown. |
+| `InferenceVault` | ERC-4626 vault. Deposit DIEM → stake via `DIEM.stake()` → mint wstDIEM. `creditDIEM()` accrues yield non-dilutively (no new shares). Withdrawals are async via a redeem queue — `requestRedeem(shares)` → ~1-day batch window + ~24h DIEM unstake cooldown → `claimRedeem(requestId)`, ~2 days total (the 14-day figure described the old v4 vault). |
 | `Router` | Multi-path entry: `depositWETH` (WETH→DIEM via Uniswap V3→vault), `depositVVV` (VVV→sVVV→mintDiem→vault), `exitToWETH` (wstDIEM→WETH via V4 `unlockCallback`). |
 | `FeeRouter` | Aggregates protocol fee income (WETH, USDC, VVV, wstDIEM). Configurable `FeeMode` per token: `CREDIT_VAULT` (swap→DIEM→creditDIEM), `CURVE_VOL` (add to Curve LP), `HOLD`. `harvest()` and `harvestVVV()` are `onlyOwner`. |
 | `SurplusStakingWrapper` | Thin wrapper for user deposits with referral tracking. |
