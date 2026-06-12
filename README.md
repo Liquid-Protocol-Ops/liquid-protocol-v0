@@ -149,7 +149,7 @@ A second subsystem in this repo (`src/vault/`): an ERC-4626 wrapper for staked D
 ### Vault Architecture (`src/vault/`)
 | Contract | Description |
 |----------|-------------|
-| `InferenceVault` | ERC-4626 vault. Deposit DIEM → `DIEM.stake()` → mint wstDIEM. `creditDIEM()` accrues yield non-dilutively. Withdrawals gated by a 14-day timelock + 24h unstake cooldown. |
+| `InferenceVault` | ERC-4626 vault. Deposit DIEM → `DIEM.stake()` → mint wstDIEM. `creditDIEM()` accrues yield non-dilutively. Withdrawals are async via a redeem queue — `requestRedeem` enters a batch (~1-day open window), then a ~24h Venice unstake cooldown, then `claimRedeem` (~2 days total). |
 | `Router` | Multi-path entry/exit: `depositWETH` (WETH→DIEM→vault), `depositVVV` (VVV→sVVV→DIEM→vault), `exitToWETH` (wstDIEM→WETH via V4), plus single-tx flash-loan leverage (`loopDeposit` / `unloopDeposit`). |
 | `FeeRouter` | Aggregates protocol fee income (WETH / USDC / VVV / wstDIEM); routes per a configurable per-token `FeeMode`. |
 | `adapters/` | Venue adapters (`BaseInferenceAdapter` + AntSeed / Surplus / X402). Each receives inference-settlement USDC, swaps to DIEM, and calls `creditDIEM()`. |
