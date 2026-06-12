@@ -123,8 +123,8 @@ A second subsystem in this repo (`src/vault/`): an ERC-4626 wrapper for staked D
 ### Venue Adapters
 | Contract | Address |
 |----------|---------|
-| AntSeedAdapter | [`0x8885b256609e1d7c1fb2f1db58a379d2efb8bbf3`](https://basescan.org/address/0x8885b256609e1d7c1fb2f1db58a379d2efb8bbf3) |
-| SurplusAdapter | [`0xf50ca14f49bd090fc13680019ed8df5046626e8b`](https://basescan.org/address/0xf50ca14f49bd090fc13680019ed8df5046626e8b) |
+| AntSeedAdapter | [`0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7`](https://basescan.org/address/0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7) |
+| SurplusAdapter | [`0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F`](https://basescan.org/address/0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F) |
 
 ### Liquidity & Lending
 | Venue | Address / Market |
