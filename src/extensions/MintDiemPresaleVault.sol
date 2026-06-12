@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+// ⚠ SUPERSEDED (2026-06-12, Linear MOG-497): the canonical Venice Agent Launchpad presale
+// contract is LiquidPresaleVault (liquid-website repo, contracts/presale/). This contract is
+// retained for tests/reference and must not be deployed for new launches.
+
 /**
  * MintDiemPresaleVault — compute presale for Liquid Protocol agent launches.
  *
