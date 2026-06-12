@@ -47,10 +47,14 @@ interface IInferenceToken {
 
     /// @notice Route accumulated inference yield to the vault.
     ///         Implementations should:
-    ///           1. Convert native revenue (USDC, etc.) → DIEM.
+    ///           1. Convert native revenue (USDC, etc.) → DIEM, requiring the swap to
+    ///              deliver at least minDiemOut (reverts otherwise, so a sandwiched or
+    ///              under-delivering swap fails — MOG-541).
     ///           2. Call vault.creditDIEM(holderDiem) for the holders' share.
     ///           3. Call vault.creditWstDIEM(sourceDiem, address(this)) for the
     ///              source's cut so the source accrues a wstDIEM position.
-    ///         This function may be called by a keeper or permissionlessly.
-    function routeYield() external;
+    ///         Restricted to the adapter operator (owner/keeper), who computes
+    ///         minDiemOut off-chain from a fresh quote net of acceptable slippage.
+    /// @param  minDiemOut Minimum DIEM the conversion swap must deliver.
+    function routeYield(uint256 minDiemOut) external;
 }

@@ -126,14 +126,14 @@ contract AdaptersTest is Test {
         _giveUsdc(address(antSeed), 1000e6);
         uint256 rateBefore = vault.convertToAssets(1e18);
         vm.prank(keeper);
-        antSeed.routeYield();
+        antSeed.routeYield(0);
         assertGt(vault.convertToAssets(1e18), rateBefore, "holder rate must increase");
     }
 
     function test_routeYield_mintsWstDiemToAdapter() public {
         _giveUsdc(address(antSeed), 1000e6);
         vm.prank(keeper);
-        antSeed.routeYield();
+        antSeed.routeYield(0);
         assertGt(
             IERC20(address(vault)).balanceOf(address(antSeed)),
             0,
@@ -146,7 +146,7 @@ contract AdaptersTest is Test {
         antSeed.setOperatorFeeBps(0);
         _giveUsdc(address(antSeed), 500e6);
         vm.prank(keeper);
-        antSeed.routeYield();
+        antSeed.routeYield(0);
         assertEq(IERC20(address(vault)).balanceOf(address(antSeed)), 0);
     }
 
@@ -155,7 +155,7 @@ contract AdaptersTest is Test {
         _giveUsdc(address(antSeed), 1000e6);
         uint256 supplyBefore = vault.totalSupply();
         vm.prank(keeper);
-        antSeed.routeYield();
+        antSeed.routeYield(0);
         // Total supply increased by operatorShares only (creditDIEM doesn't mint shares)
         assertGt(vault.totalSupply(), supplyBefore, "operator shares minted");
     }
@@ -165,7 +165,7 @@ contract AdaptersTest is Test {
         _giveUsdc(address(antSeed), usdcIn);
         vm.prank(keeper);
         vm.recordLogs();
-        antSeed.routeYield();
+        antSeed.routeYield(0);
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes32 sig = keccak256("YieldRouted(uint256,uint256,uint256)");
         bool found;
@@ -185,7 +185,7 @@ contract AdaptersTest is Test {
         _giveUsdc(address(surplus), 200e6);
         uint256 rateBefore = vault.convertToAssets(1e18);
         vm.prank(keeper);
-        surplus.routeYield();
+        surplus.routeYield(0);
         assertGt(vault.convertToAssets(1e18), rateBefore);
     }
 
@@ -193,7 +193,7 @@ contract AdaptersTest is Test {
         _giveUsdc(address(x402), 150e6);
         uint256 rateBefore = vault.convertToAssets(1e18);
         vm.prank(keeper);
-        x402.routeYield();
+        x402.routeYield(0);
         assertGt(vault.convertToAssets(1e18), rateBefore);
     }
 
@@ -203,19 +203,19 @@ contract AdaptersTest is Test {
         _giveUsdc(address(antSeed), 100e6);
         vm.prank(alice);
         vm.expectRevert("not operator");
-        antSeed.routeYield();
+        antSeed.routeYield(0);
     }
 
     function test_routeYield_allowsOwner() public {
         _giveUsdc(address(antSeed), 100e6);
         vm.prank(owner);
-        antSeed.routeYield();
+        antSeed.routeYield(0);
     }
 
     function test_routeYield_allowsKeeper() public {
         _giveUsdc(address(antSeed), 100e6);
         vm.prank(keeper);
-        antSeed.routeYield();
+        antSeed.routeYield(0);
     }
 
     // ── setOperatorFeeBps ─────────────────────────────────────────────────────
@@ -243,7 +243,31 @@ contract AdaptersTest is Test {
     function test_routeYield_revertsWhenNoUsdc() public {
         vm.prank(keeper);
         vm.expectRevert("no USDC to route");
-        antSeed.routeYield();
+        antSeed.routeYield(0);
+    }
+
+    // ── routeYield slippage floor (MOG-541) ───────────────────────────────────
+
+    function test_routeYield_revertsWhenBelowMinDiemOut() public {
+        // 100 USDC → 100e18 DIEM at the mock rate. Demanding more must revert,
+        // proving a sandwiched/under-delivering swap fails instead of crediting.
+        uint256 usdcIn = 100e6;
+        _giveUsdc(address(antSeed), usdcIn);
+        uint256 expectedOut = usdcIn * USDC_TO_DIEM;
+        vm.prank(keeper);
+        vm.expectRevert("Too little received");
+        antSeed.routeYield(expectedOut + 1);
+    }
+
+    function test_routeYield_succeedsAtExactMinDiemOut() public {
+        // minDiemOut == exact output is satisfied (>=), so the swap goes through.
+        uint256 usdcIn = 100e6;
+        _giveUsdc(address(antSeed), usdcIn);
+        uint256 expectedOut = usdcIn * USDC_TO_DIEM;
+        uint256 rateBefore = vault.convertToAssets(1e18);
+        vm.prank(keeper);
+        antSeed.routeYield(expectedOut);
+        assertGt(vault.convertToAssets(1e18), rateBefore, "holder rate must increase");
     }
 
     // ── IInferenceToken views ─────────────────────────────────────────────────

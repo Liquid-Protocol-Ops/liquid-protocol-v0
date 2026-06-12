@@ -68,7 +68,7 @@ contract DeployV6Adapters is Script {
         AntSeedAdapter ant = new AntSeedAdapter(VAULT, USDC, SWAP_ROUTER, deployer);
         SurplusAdapter sur = new SurplusAdapter(VAULT, USDC, SWAP_ROUTER, deployer);
 
-        // 2. Configure: keeper calls routeYield + is the authorized settler (relay model).
+        // 2. Configure: keeper calls routeYield(minDiemOut) + is the authorized settler (relay model).
         //    operatorFeeBps stays at the 10% default.
         ant.setKeeper(KEEPER);
         ant.setAuthorizedSettler(KEEPER);
