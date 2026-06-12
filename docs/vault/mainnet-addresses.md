@@ -1,6 +1,6 @@
 # wstDIEM Liquid Inference Vault — Base Mainnet Addresses
 
-**Last updated:** 2026-06-10 — **v6 LIVE** (clean redeploy, MOG-548). v5 superseded.
+**Last updated:** 2026-06-12 — **v6 LIVE**; venue adapters redeployed with the MOG-541 `routeYield(minDiemOut)` fix. v5 superseded.
 **Chain:** Base mainnet (chain 8453)
 **Owner (Safe):** `0x872c561f699B42977c093F0eD8b4C9a431280c6c`
 
@@ -27,6 +27,17 @@ Clean redeploy via `DeployV6.s.sol`: hardened VVV oracle (granularity 24 + 2h st
 
 **v6 Morpho markets** (created, unseeded): wstDIEM/VVV 62.5% (oracle `0x9E98…`) + wstDIEM/DIEM 86% (oracle `0xAF29…`), IRM `0x46415998…`. **V4 pool:** WETH/wstDIEM, DYNAMIC_FEE_FLAG, tickSpacing 60, hook `0xf010…5080`, init tick 3017. Deploy: `docs/vault/V6_DEPLOY_RUNBOOK.md`; deployer `0x428Fac…` (single-use). Post-deploy TODO: Basescan verify, rotate veniceSigner, seed liquidity, cross-repo propagation.
 
+## Venue Adapters (v6 — LIVE 2026-06-12) ✅
+
+Redeployed with the MOG-541 `routeYield(minDiemOut)` slippage floor and registered on the v6 vault (`isVenueAdapter = true`). Keeper `0x988CE72d` is operator + authorized settler on both. The old `amountOutMinimum:0` adapters are deregistered.
+
+| Contract | Address | Basescan |
+|----------|---------|---------|
+| AntSeedAdapter | `0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7` | [view](https://basescan.org/address/0xed98a5f4f3acfd0752a81fdd03dd28b7a44a18b7) |
+| SurplusAdapter | `0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F` | [view](https://basescan.org/address/0x91b3e39ef6335d97876adb4448a998c7cbd3885f) |
+
+> **X402Adapter is not redeployed for v6** — the v5 `0xC3C3…` is unregistered on the v6 vault. Only AntSeed + Surplus are live.
+
 ---
 
 ## Core Stack (v5 — SUPERSEDED by v6)
@@ -40,7 +51,7 @@ Clean redeploy via `DeployV6.s.sol`: hardened VVV oracle (granularity 24 + 2h st
 | SurplusStakingWrapper | `0x04fAc3e264bD05478Ffc1Caa25394403f8eBc7d7` | [view](https://basescan.org/address/0x04fac3e264bd05478ffc1caa25394403f8ebc7d7) |
 | InferenceProduct | `0x8620304D28c162E2D2Ae3bF279516DAc368D6879` | [view](https://basescan.org/address/0x8620304d28c162e2d2ae3bf279516dac368d6879) |
 
-## Venue Adapters (v5)
+## Venue Adapters (v5 — SUPERSEDED)
 
 | Contract | Address | Basescan |
 |----------|---------|---------|
