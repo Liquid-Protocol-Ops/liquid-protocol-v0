@@ -26,7 +26,7 @@ contract ComputePresaleFactoryTest is Test {
         bytes32 salt = factory.buildSalt(deployer, 0);
 
         address predicted = factory.computeAddress(
-            salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+            deployer, salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
         );
 
         vm.prank(deployer);
@@ -40,7 +40,7 @@ contract ComputePresaleFactoryTest is Test {
     function test_computeAddress_vvvMode() public {
         bytes32 salt = factory.buildSalt(deployer, 1);
         address predicted = factory.computeAddress(
-            salt, liquidFactory, depositToken, agentWallet, 0, DEPOSIT_WINDOW
+            deployer, salt, liquidFactory, depositToken, agentWallet, 0, DEPOSIT_WINDOW
         );
         assertFalse(predicted == address(0));
     }
@@ -48,10 +48,10 @@ contract ComputePresaleFactoryTest is Test {
     function test_computeAddress_deterministicForSameParams() public {
         bytes32 salt = factory.buildSalt(deployer, 2);
         address a = factory.computeAddress(
-            salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+            deployer, salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
         );
         address b = factory.computeAddress(
-            salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+            deployer, salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
         );
         assertEq(a, b);
     }
@@ -60,10 +60,22 @@ contract ComputePresaleFactoryTest is Test {
         bytes32 salt0 = factory.buildSalt(deployer, 0);
         bytes32 salt1 = factory.buildSalt(deployer, 1);
         address a = factory.computeAddress(
-            salt0, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+            deployer, salt0, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
         );
         address b = factory.computeAddress(
-            salt1, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+            deployer, salt1, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+        );
+        assertTrue(a != b);
+    }
+
+    function test_computeAddress_sameSalt_diffDeployer_diffAddress() public {
+        address other = makeAddr("other");
+        bytes32 salt = factory.buildSalt(deployer, 0);
+        address a = factory.computeAddress(
+            deployer, salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+        );
+        address b = factory.computeAddress(
+            other, salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
         );
         assertTrue(a != b);
     }
@@ -88,12 +100,17 @@ contract ComputePresaleFactoryTest is Test {
     function test_deployVault_emitsEvent() public {
         bytes32 salt = factory.buildSalt(deployer, 0);
         address predicted = factory.computeAddress(
-            salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+            deployer, salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
         );
 
         vm.expectEmit(true, true, true, true);
         emit ComputePresaleFactory.VaultDeployed(
-            salt, predicted, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
+            factory.effectiveSalt(deployer, salt),
+            predicted,
+            depositToken,
+            agentWallet,
+            LOCK_DURATION,
+            DEPOSIT_WINDOW
         );
         vm.prank(deployer);
         factory.deployVault(
@@ -107,7 +124,7 @@ contract ComputePresaleFactoryTest is Test {
         address vault = factory.deployVault(
             salt, liquidFactory, depositToken, agentWallet, LOCK_DURATION, DEPOSIT_WINDOW
         );
-        assertEq(factory.vaultAt(salt), vault);
+        assertEq(factory.vaultAt(factory.effectiveSalt(deployer, salt)), vault);
     }
 
     function test_revert_saltAlreadyUsed() public {
@@ -170,8 +187,8 @@ contract ComputePresaleFactoryTest is Test {
         );
 
         assertTrue(vault0 != vault1);
-        assertEq(factory.vaultAt(salt0), vault0);
-        assertEq(factory.vaultAt(salt1), vault1);
+        assertEq(factory.vaultAt(factory.effectiveSalt(deployer, salt0)), vault0);
+        assertEq(factory.vaultAt(factory.effectiveSalt(deployer, salt1)), vault1);
 
         // VVV vault has lockDuration 0, DIEM vault has 30 days
         assertEq(ComputePresaleVault(vault0).lockDuration(), 0);

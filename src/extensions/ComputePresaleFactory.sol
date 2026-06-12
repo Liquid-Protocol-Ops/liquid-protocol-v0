@@ -19,10 +19,12 @@ pragma solidity ^0.8.28;
  * Steps 3 and 4 can be batched in a single transaction via a multicall contract
  * or sequenced script, since the address is already known.
  *
- * Salt discipline: salt encodes the deployer address in the upper 20 bytes to
- * prevent front-running (another EOA cannot deploy to the same address with the
- * same salt because the salt would differ).
- *   salt = keccak256(abi.encode(msg.sender, userNonce))
+ * Salt discipline (enforced on-chain): the effective CREATE2 salt and the registry
+ * key are both derived as keccak256(abi.encode(msg.sender, salt)). The caller-supplied
+ * `salt` is only ever a namespace *within* the caller's own address space, so a
+ * different EOA can never deploy to — or burn the registry slot of — another deployer's
+ * vault address. Use computeAddress(deployer, salt, ...) (or effectiveSalt(deployer, salt))
+ * to predict the address / registry key for a given deployer.
  */
 
 import {ComputePresaleVault} from "./ComputePresaleVault.sol";
@@ -47,14 +49,19 @@ contract ComputePresaleFactory {
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    mapping(bytes32 => address) public vaultAt; // salt → deployed vault
+    mapping(bytes32 => address) public vaultAt; // effectiveSalt(deployer, salt) → deployed vault
 
     // ── Core: deploy ──────────────────────────────────────────────────────────
 
     /**
      * Deploy a ComputePresaleVault at a deterministic CREATE2 address.
      *
-     * @param salt          Unique bytes32; include msg.sender to prevent front-running.
+     * The effective CREATE2 salt and registry key are derived from msg.sender, so the
+     * supplied `salt` only namespaces deployments within the caller's own address space.
+     * This makes front-running impossible: another EOA passing the same `salt` resolves
+     * to a different effective salt, a different address, and a different registry slot.
+     *
+     * @param salt          Caller-chosen namespace value (need not be secret).
      * @param liquidFactory Liquid Protocol factory that will call receiveTokens().
      * @param depositToken  VVV (lockDuration=0) or DIEM (lockDuration>0).
      * @param agentWallet   Receives VVV on finalizeVVV() (VVV mode only).
@@ -70,20 +77,26 @@ contract ComputePresaleFactory {
         uint256 lockDuration,
         uint256 depositWindow
     ) external returns (address vault) {
-        if (vaultAt[salt] != address(0)) revert SaltAlreadyUsed();
-        if (liquidFactory == address(0) || depositToken == address(0)) revert ZeroAddress();
+        if (liquidFactory == address(0) || depositToken == address(0)) {
+            revert ZeroAddress();
+        }
+
+        bytes32 namespacedSalt = effectiveSalt(msg.sender, salt);
+        if (vaultAt[namespacedSalt] != address(0)) revert SaltAlreadyUsed();
 
         bytes memory initCode =
             _initCode(liquidFactory, depositToken, agentWallet, lockDuration, depositWindow);
 
         assembly {
-            vault := create2(0, add(initCode, 0x20), mload(initCode), salt)
+            vault := create2(0, add(initCode, 0x20), mload(initCode), namespacedSalt)
         }
         if (vault == address(0)) revert DeployFailed();
 
-        vaultAt[salt] = vault;
+        vaultAt[namespacedSalt] = vault;
 
-        emit VaultDeployed(salt, vault, depositToken, agentWallet, lockDuration, depositWindow);
+        emit VaultDeployed(
+            namespacedSalt, vault, depositToken, agentWallet, lockDuration, depositWindow
+        );
     }
 
     // ── Core: predict ─────────────────────────────────────────────────────────
@@ -92,6 +105,7 @@ contract ComputePresaleFactory {
      * Compute the vault address for the given parameters without deploying.
      * Use this to pre-compute the vault address for extensionConfigs.
      *
+     * @param deployer      The address that will call deployVault() (the namespace owner).
      * @param salt          The same salt that will be passed to deployVault().
      * @param liquidFactory Liquid Protocol factory address.
      * @param depositToken  VVV or DIEM token address.
@@ -101,6 +115,7 @@ contract ComputePresaleFactory {
      * @return predicted    Deterministic vault address.
      */
     function computeAddress(
+        address deployer,
         bytes32 salt,
         address liquidFactory,
         address depositToken,
@@ -108,28 +123,37 @@ contract ComputePresaleFactory {
         uint256 lockDuration,
         uint256 depositWindow
     ) external view returns (address predicted) {
+        bytes32 ns = effectiveSalt(deployer, salt);
         bytes32 initCodeHash = keccak256(
             _initCode(liquidFactory, depositToken, agentWallet, lockDuration, depositWindow)
         );
-        predicted = address(
-            uint160(
-                uint256(
-                    keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash))
-                )
-            )
-        );
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(this), ns, initCodeHash));
+        predicted = address(uint160(uint256(hash)));
     }
 
-    // ── Convenience: build salt ───────────────────────────────────────────────
+    // ── Convenience: salt derivation ──────────────────────────────────────────
 
     /**
-     * Build a deployer-namespaced salt from a user-supplied nonce.
-     * Using the deployer address in the salt prevents front-running:
-     * the same nonce from a different EOA produces a different salt.
+     * Derive the effective CREATE2 salt / registry key for a (deployer, salt) pair.
+     * Mirrors the internal derivation used by deployVault(), so off-chain callers can
+     * look up vaultAt(...) or reproduce the deployment address for a given deployer.
      *
-     * @param deployer  msg.sender of the deployVault call.
+     * @param deployer  The address that calls (or will call) deployVault().
+     * @param salt      The caller-supplied salt namespace value.
+     * @return          keccak256(abi.encode(deployer, salt)).
+     */
+    function effectiveSalt(address deployer, bytes32 salt) public pure returns (bytes32) {
+        return keccak256(abi.encode(deployer, salt));
+    }
+
+    /**
+     * Optional helper to derive a bytes32 salt from a uint256 nonce.
+     * Front-running protection no longer depends on this — deployVault() namespaces by
+     * msg.sender unconditionally — but it remains a convenient way to pick a unique salt.
+     *
+     * @param deployer  Address to namespace the nonce under.
      * @param nonce     Any unique uint256 (e.g., block.number, counter).
-     * @return salt     Bytes32 salt safe to pass to deployVault().
+     * @return          Bytes32 salt suitable for deployVault().
      */
     function buildSalt(address deployer, uint256 nonce) external pure returns (bytes32) {
         return keccak256(abi.encode(deployer, nonce));

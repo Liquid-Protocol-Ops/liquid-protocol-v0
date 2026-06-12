@@ -351,7 +351,7 @@ contract FactoryIntegration is BaseIntegration {
 
         // Predict address before deploying
         address predicted = factory.computeAddress(
-            salt, address(liquidFactory), VVV, agentWallet, 0, DEPOSIT_WINDOW
+            address(this), salt, address(liquidFactory), VVV, agentWallet, 0, DEPOSIT_WINDOW
         );
 
         // Deploy vault
