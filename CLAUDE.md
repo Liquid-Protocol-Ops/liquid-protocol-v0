@@ -28,7 +28,7 @@ Full paths required (not on default PATH):
 | `op` (1Password CLI) | `/opt/homebrew/bin/op` |
 
 Secrets:
-- **Deployer v6** (for the planned v6 security-fix redeploy — not yet deployed; v5 is live): `0xf04822e5B0E76A34aeeA936c79B4439f794b8Be1` — `op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credential --reveal` (vault: `Personal`, item: "wstDIEM v6 Deployer EOA"). Fund from wstdiem-deployer Splits account `0xf4DB2a7B6902924EFCd8270d23B205969EfF3316`.
+- **Deployer v6** (reserved for the pending adapter security-fix redeploy, MOG-541 — the v6 vault itself is already LIVE, deployed 2026-06-10): `0xf04822e5B0E76A34aeeA936c79B4439f794b8Be1` — `op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credential --reveal` (vault: `Personal`, item: "wstDIEM v6 Deployer EOA"). Fund from wstdiem-deployer Splits account `0xf4DB2a7B6902924EFCd8270d23B205969EfF3316`.
 - **Deployer v5** (legacy, v5 contracts only): `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` — `op item get el4qwixmdot757dpxcqgfo43qe --field "private key" --reveal` (vault: `mog.capital`)
 - **Deployer v4** (legacy, do not reuse): `op item get dlvppn2nk3mkz2ewgcu3yhqbj4 --field private_key --reveal`
 - **Keeper EOA**: `0x988CE72d127b8A06821BBb3708897dBdc0D66f2f` — `cat ~/.splits/config.json | python3 -c "import sys,json; print(json.load(sys.stdin)['key']['privateKey'])"`. Fund from wstdiem-keeper Splits account `0x102368E997ced4b94d093813B3c1F5fB1F15f4B1`.
@@ -88,25 +88,23 @@ ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM i
 | Curve DIEM/wstDIEM | `0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2` | StableSwap exit pool (v5) |
 | Aerodrome DIEM/VVV pool (volatile v2) | `0xbB345D35450BF9Ee76F3D2cE214E8e7AC5e1071d` | Only deep DIEM DEX liquidity (~$6M v2; token0=liquid VVV, token1=DIEM). `quote(DIEM,1e18,n)` is the TWAP source for `WstDiemVvvOracle` — DIEM has no USD-liquid market. Size borrow caps to this pool's depth, not CL-pool totals. |
 
-**Active deployed addresses (Base mainnet) — v5.** The canonical, maintained source is **`docs/vault/mainnet-addresses.md`** — trust it over this table when they differ (this one drifts). Quick reference:
+**Active deployed addresses (Base mainnet) — v6 LIVE (2026-06-10; v5 superseded).** The canonical, maintained source is **`docs/vault/mainnet-addresses.md`** — trust it over this quick-reference if they differ. Core v6:
 
 | Contract | Address |
 |----------|---------|
-| InferenceVault (wstDIEM v5) | `0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D` |
-| FeeRouter | `0x3b8d968DCca09E319fac7Df741804Af5644E3a60` |
-| Router | `0x6fF481F4B3B0E2ADa548D454F7011D1ed51532B6` |
-| AgentTGERegistry | `0x09a4227935FF15b261533238F79935CCcA0e7941` |
-| SurplusStakingWrapper | `0x04fAc3e264bD05478Ffc1Caa25394403f8eBc7d7` |
-| InferenceProduct | `0x8620304D28c162E2D2Ae3bF279516DAc368D6879` |
-| Curve DIEM/wstDIEM | `0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2` |
-| Morpho wstDIEM/DIEM oracle (86% LLTV) | `0xB1B192fc0190bA15F4EC76BF6032123bc688F76D` |
-| Morpho wstDIEM/DIEM oracle (77% LLTV) | `0xE762e8011D453853638D1978398df8b1D383A2D9` |
-| Morpho wstDIEM/USDC oracle (DEPRECATED — MOG-542, do not use) | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` |
-| Morpho wstDIEM/WETH oracle (DEPRECATED — MOG-542, do not use) | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` |
-| Morpho wstDIEM/VVV oracle (62.5%, on-chain TWAP — MOG-544) | `0xC76e2fe5176B432035Def5362023a8DF36bEE94E` |
-| AntSeedAdapter | `0xE9C2BE3ab25E97Ef4364c505202016106Bec6a6e` |
-| SurplusAdapter | `0xB67A86Ab50e30d7509eeD205Fc01A70758B227Db` |
-| X402Adapter | `0xC3C3CaC663f88304a38Cb9C4e9c02bB57DB00142` |
+| InferenceVault (wstDIEM v6) | `0xe49FA849cB37b0e7A42B2335e333fb99474167ba` |
+| Router | `0x74ad4532133Ba538945a5371D249560E66CC7c71` |
+| FeeRouter | `0xa13a6e75d696bAceB38236389eeFD6eCa5FD4ED3` |
+| WstDIEMHook (V4 dynamic fee) | `0xf010A31BBD4B501b4232b1945EC18584Ff9B5080` |
+| WstDiemDiemOracle (86% LLTV mkt) | `0xAF29776f93FE0bf21282bF792A52AC212f20F45c` |
+| WstDiemVvvOracle (62.5% LLTV mkt) | `0x9E982637f26aAaAd0bfDBe3c6c1846120C4E5A62` |
+| Curve DIEM/wstDIEM | `0x21c33a1Bb5f6Eb43563e1fB9e7AA1D4E90C1A0CD` |
+| LiquidityManager (Safe-owned V4 LP) | `0xbA4129d3718f32Ed48343d40CfAf6Be9096D086b` |
+| AgentTGERegistry | `0xb13830e7f72Eef167A7F188285feBa5f7C1198Ef` |
+| SurplusStakingWrapper | `0x1A74750eb49c2f6C8C44B9eadaE5C55C7941F271` |
+| InferenceProduct | `0xE43c4B1930531360c3924F72e9395e9c5bC4a5F3` |
+| AntSeedAdapter | `0x8885b256609e1d7c1fb2f1db58a379d2efb8bbf3` |
+| SurplusAdapter | `0xf50ca14f49bd090fc13680019ed8df5046626e8b` |
 | Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` |
 
 wstDIEM/VVV Morpho market (MOG-544, created 2026-06-05, **unseeded — borrows gated on liquidation depth, MOG-536**): ID `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8` — collateral wstDIEM, loan **liquid VVV** `0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf`, oracle `0xC76e2fe5176B432035Def5362023a8DF36bEE94E`, IRM `0x46415998764C29aB2a25CbeA6254146D50D22687`.
