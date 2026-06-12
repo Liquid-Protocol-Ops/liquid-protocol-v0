@@ -62,9 +62,9 @@ The vault does three things:
 | InferenceVault | `0xe49FA849cB37b0e7A42B2335e333fb99474167ba` | ERC-4626 vault, wstDIEM token, withdrawal queue |
 | FeeRouter | `0xa13a6e75d696bAceB38236389eeFD6eCa5FD4ED3` | Aggregates Liquid Protocol fees, routes to vault |
 | Router | `0x74ad4532133Ba538945a5371D249560E66CC7c71` | WETH/VVV entry, Morpho leverage loop |
-| AntSeedAdapter | `0xE9C2BE3ab25E97Ef4364c505202016106Bec6a6e` | AntSeed USDC settlement |
-| SurplusAdapter | `0xB67A86Ab50e30d7509eeD205Fc01A70758B227Db` | Surplus AI USDC settlement |
-| X402Adapter | `0xC3C3CaC663f88304a38Cb9C4e9c02bB57DB00142` | X402 micropayment settlement |
+| AntSeedAdapter | `0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7` | AntSeed USDC settlement |
+| SurplusAdapter | `0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F` | Surplus AI USDC settlement |
+| X402Adapter | _(not deployed for v6)_ | X402 micropayment settlement — v5-only, unregistered on v6 |
 | SurplusStakingWrapper | `0x1A74750eb49c2f6C8C44B9eadaE5C55C7941F271` | Referral deposit wrapper |
 | AgentTGERegistry | `0xb13830e7f72Eef167A7F188285feBa5f7C1198Ef` | Agent lifecycle tracking |
 | InferenceProduct | `0xE43c4B1930531360c3924F72e9395e9c5bC4a5F3` | On-chain inference slot registry |

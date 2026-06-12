@@ -77,9 +77,9 @@ cast send $ADAPTER "routeYield(uint256)" $MIN_DIEM_OUT \
 ```
 
 Adapter addresses:
-- AntSeedAdapter: `0xE9C2BE3ab25E97Ef4364c505202016106Bec6a6e`
-- SurplusAdapter: `0xB67A86Ab50e30d7509eeD205Fc01A70758B227Db`
-- X402Adapter: `0xC3C3CaC663f88304a38Cb9C4e9c02bB57DB00142`
+- AntSeedAdapter: `0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7`
+- SurplusAdapter: `0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F`
+- X402Adapter: _(not deployed for v6 — v5-only, unregistered)_
 
 ---
 

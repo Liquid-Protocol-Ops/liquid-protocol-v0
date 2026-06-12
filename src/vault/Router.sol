@@ -54,7 +54,8 @@ interface IMorphoFlashLoanCallback {
 
 /// @dev Curve StableSwap — synchronous wstDIEM→DIEM exit path.
 ///      Coin indices: 0=DIEM, 1=wstDIEM. Used by unloopDeposit because
-///      vault.redeem() requires the 14-day withdrawal queue in production.
+///      vault.redeem() requires the async redeem queue in production (~2 days;
+///      not a 14-day timelock — that was the old v4 vault).
 interface ICurveStableSwap {
     function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external returns (uint256);
 }
