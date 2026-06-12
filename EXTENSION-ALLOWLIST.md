@@ -32,6 +32,10 @@ Extension allowlisting is managed by the `LiquidPoolExtensionAllowlist` contract
 
 Liquid Protocol reserves the right to remove any extension at any time.
 
+## First-Party Launchpad Presale Vaults
+
+The Venice Agent Launchpad attaches a first-party `LiquidPresaleVault` instance (one per token launch, 10% of supply) as an extension. These are **not** third-party extensions and do not go through the application process above: each per-launch vault is enabled individually by the admin Safe via `setExtension(vault, true)` (see `script/vault/SafeEnablePresaleVault.s.sol`, which verifies the vault's interface, factory binding, and uninitialized state before signing). The vault contract is first-party code (GHSA-6566-6rm7-j9p3 remediated; external audit pending) and each enablement still requires the multisig — no single party can enable a vault.
+
 ## Current Status
 
-We have no plans to approve additional extensions at this time. Any extension approvals under consideration will be communicated in advance with all partners and infrastructure providers.
+We have no plans to approve additional **third-party** extensions at this time. First-party launchpad presale vaults are enabled per-launch under the process above. Any third-party extension approvals under consideration will be communicated in advance with all partners and infrastructure providers.
