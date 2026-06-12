@@ -103,8 +103,8 @@ ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM i
 | AgentTGERegistry | `0xb13830e7f72Eef167A7F188285feBa5f7C1198Ef` |
 | SurplusStakingWrapper | `0x1A74750eb49c2f6C8C44B9eadaE5C55C7941F271` |
 | InferenceProduct | `0xE43c4B1930531360c3924F72e9395e9c5bC4a5F3` |
-| AntSeedAdapter | `0x8885b256609e1d7c1fb2f1db58a379d2efb8bbf3` |
-| SurplusAdapter | `0xf50ca14f49bd090fc13680019ed8df5046626e8b` |
+| AntSeedAdapter | `0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7` |
+| SurplusAdapter | `0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F` |
 | Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` |
 
 wstDIEM/VVV Morpho market (MOG-544, created 2026-06-05, **unseeded — borrows gated on liquidation depth, MOG-536**): ID `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8` — collateral wstDIEM, loan **liquid VVV** `0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf`, oracle `0xC76e2fe5176B432035Def5362023a8DF36bEE94E`, IRM `0x46415998764C29aB2a25CbeA6254146D50D22687`.
@@ -176,5 +176,5 @@ For the **Liquid Protocol** side, `README.md` lists all deployed core/hook/exten
 ## Security & Audit
 
 - **Liquid Protocol** is a fork of [Clanker v4](https://github.com/clanker-devco/v4-contracts), audited by **0xMacro** and **Cantina**. The hook/locker/extension logic is architecturally identical to the audited code (only `Clanker*`→`Liquid*` renames + own factory).
-- **The wstDIEM vault (`src/vault/**`) is new and unaudited.** An agent-driven review (`docs/vault/SECURITY_REVIEW.md`, MOG-532) surfaced **1 High + 2 Medium**. v6 **addresses the two Mediums** (USD oracles deprecated → MOG-542/549; `recordFeeReceipt` gated → MOG-543). The **High (MOG-541, `routeYield` `amountOutMinimum=0`) is NOT code-fixed** — it is risk-accepted via `onlyOperator` access control (operator must use a private relay; implement `minDiemOut` before scaling TVL). A third-party audit is recommended before large external TVL.
+- **The wstDIEM vault (`src/vault/**`) is new and unaudited.** An agent-driven review (`docs/vault/SECURITY_REVIEW.md`, MOG-532) surfaced **1 High + 2 Medium**. v6 **addresses the two Mediums** (USD oracles deprecated → MOG-542/549; `recordFeeReceipt` gated → MOG-543). The **High (MOG-541, `routeYield` `amountOutMinimum=0`) is now fixed and live on-chain** — adapters redeployed 2026-06-12 with a caller-supplied `routeYield(minDiemOut)` slippage floor (AntSeed `0xed98A5f4…`, Surplus `0x91b3E39E…`; the old `amountOutMinimum:0` adapters are deregistered). A third-party audit is still recommended before large external TVL.
 - **Live oracle caveat:** the deployed `WstDiemUsdcOracle` / `WstDiemWethOracle` **hardcode `DIEM = $1`**, but DIEM trades ≈ $1,100+ (it's a perpetuity ≈ 89 VVV). Treat the wstDIEM/USDC and wstDIEM/WETH Morpho markets as **mispriced — do not seed meaningful TVL**. The fix is `WstDiemVvvOracle` (VVV-denominated, fully on-chain). The wstDIEM/DIEM leverage-loop market uses the vault rate directly and is unaffected. These two markets are now formally deprecated (MOG-549); the VVV market is canonical. (MOG-549 sweep: `$1/DIEM/day` is correct as an *inference entitlement* in `AgentTGERegistry`/`InferenceProduct`; it was only wrong as a *collateral price* in these two oracles + the V4 init.)

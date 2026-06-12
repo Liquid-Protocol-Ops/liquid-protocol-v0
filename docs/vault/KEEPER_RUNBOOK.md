@@ -72,7 +72,7 @@ cast call $ADAPTER "usdc()(address)" --rpc-url $BASE_RPC_URL
 cast call $USDC "balanceOf(address)(uint256)" $ADAPTER --rpc-url $BASE_RPC_URL
 
 # Route yield (requires operator role — Safe or set keeper)
-cast send $ADAPTER "routeYield()" \
+cast send $ADAPTER "routeYield(uint256)" $MIN_DIEM_OUT \
   --rpc-url $BASE_RPC_URL --private-key $KEEPER_PK
 ```
 
@@ -193,16 +193,16 @@ export DEPLOYER_V6_PK=$(op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credentia
 ## Inference Yield Relay (v6 adapters)
 
 The v6 vault earns yield from AntSeed + Surplus inference revenue via two registered adapters:
-- **AntSeedAdapter** `0x8885B256609e1D7C1FB2f1dB58a379D2efb8bbf3`
-- **SurplusAdapter** `0xf50ca14f49bD090fC13680019Ed8dF5046626e8b`
+- **AntSeedAdapter** `0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7`
+- **SurplusAdapter** `0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F`
 
 Both settle USDC to the keeper `0x988CE72d` (operator + authorized settler), 10% operator fee. Each cycle the keeper relays its accrued USDC into an adapter and routes it to DIEM yield via `script/vault/KeeperRelay.s.sol`:
 
 ```bash
 # keeper key from ~/.splits/config.json (key.privateKey); keeper needs ETH for gas
-ADAPTER=0x8885B256609e1D7C1FB2f1dB58a379D2efb8bbf3 \   # or 0xf50ca14f… for Surplus
+ADAPTER=0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7 \   # or 0x91b3E39E… for Surplus
 KEEPER_PK=<keeper pk> \
 forge script script/vault/KeeperRelay.s.sol --tc KeeperRelay --rpc-url $BASE_RPC_URL --broadcast
 ```
 
-It pushes the keeper's USDC into the adapter (`receiveSettlement`) then calls `routeYield()` — USDC→WETH→DIEM, then **90% `creditDIEM`** (raises the wstDIEM rate for ALL holders = yield) + **10%** to the adapter as operator wstDIEM. Optional `AMOUNT=<usdc 6dec>` for a partial relay (attribute per-venue off-chain). Reverts harmlessly with "no USDC to relay" when empty — safe to cron on a tight interval. `routeYield` uses `amountOutMinimum=0`, so the keeper should time calls / check pricing to avoid sandwiching. Off-chain prerequisite: AntSeed + Surplus must be configured to pay settlement USDC to the keeper (see `docs/vault/V6_LAUNCH.md` + the marketplace setup).
+It pushes the keeper's USDC into the adapter (`receiveSettlement`) then calls `routeYield(minDiemOut)` — USDC→WETH→DIEM, then **90% `creditDIEM`** (raises the wstDIEM rate for ALL holders = yield) + **10%** to the adapter as operator wstDIEM. Optional `AMOUNT=<usdc 6dec>` for a partial relay (attribute per-venue off-chain). Reverts harmlessly with "no USDC to relay" when empty — safe to cron on a tight interval. `routeYield(minDiemOut)` enforces a caller-supplied slippage floor on the USDC→WETH→DIEM swap (MOG-541 fix, live on the redeployed adapters), so set `MIN_DIEM_OUT` from a fresh quote. Off-chain prerequisite: AntSeed + Surplus must be configured to pay settlement USDC to the keeper (see `docs/vault/V6_LAUNCH.md` + the marketplace setup).

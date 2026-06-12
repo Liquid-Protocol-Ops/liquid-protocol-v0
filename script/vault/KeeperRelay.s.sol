@@ -19,8 +19,8 @@ import {Script, console} from "forge-std/Script.sol";
 // net of acceptable slippage. It is REQUIRED (no default) so a swap can never settle at full
 // slippage; a misconfigured cron reverts rather than routing into a sandwich.
 //
-// v6 adapters:  AntSeed 0x8885B256609e1D7C1FB2f1dB58a379D2efb8bbf3
-//               Surplus 0xf50ca14f49bD090fC13680019Ed8dF5046626e8b
+// v6 adapters:  AntSeed 0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7
+//               Surplus 0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F
 //
 // Run (cron this; keeper key from ~/.splits/config.json):
 //   ADAPTER=<adapter> MIN_DIEM_OUT=<diem 18dec floor> \
