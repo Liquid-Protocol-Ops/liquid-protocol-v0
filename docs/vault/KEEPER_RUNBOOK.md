@@ -28,7 +28,7 @@ cast send $VAULT "flush()" \
 
 Check if flushable:
 ```bash
-cast call $VAULT "currentBatchStatus()(uint32,uint128,uint64,uint32,uint64)" \
+cast call $VAULT "currentBatchInfo()(uint32,uint128,uint64,uint32,uint64)" \
   --rpc-url $BASE_RPC_URL
 # returns: (batchId, diemTotal, openedAt, userCount, flushableAt)
 # flush is allowed when block.timestamp >= flushableAt OR userCount >= 50
@@ -134,7 +134,7 @@ cast call $DIEM "stakedInfos(address)(uint256,uint256,uint256)" $VAULT \
 cast call $VAULT "totalSupply()(uint256)" --rpc-url $BASE_RPC_URL
 
 # Current batch state
-cast call $VAULT "currentBatchStatus()(uint32,uint128,uint64,uint32,uint64)" \
+cast call $VAULT "currentBatchInfo()(uint32,uint128,uint64,uint32,uint64)" \
   --rpc-url $BASE_RPC_URL
 
 # Pending withdrawal liability
