@@ -8,18 +8,23 @@ import {Script, console} from "forge-std/Script.sol";
 // Yield flow (relay model): AntSeed / Surplus settle inference USDC to the keeper EOA
 // (0x988CE72d). Each cycle the keeper pushes that USDC into a registered adapter and routes it:
 //   keeper USDC --approve--> adapter --receiveSettlement--> adapter holds USDC
-//   adapter.routeYield(): USDC -> WETH -> DIEM (V3), then
+//   adapter.routeYield(minDiemOut): USDC -> WETH -> DIEM (V3, reverts below minDiemOut), then
 //     90% -> vault.creditDIEM()    (raises wstDIEM rate for ALL holders = yield)
 //     10% -> vault.creditWstDIEM() (operator cut, compounds to the adapter)
 //
 // The keeper attributes commingled USDC off-chain (it knows which venue paid how much) and
 // calls this per adapter so per-venue operator-fee wstDIEM accrues to the right adapter.
 //
+// MIN_DIEM_OUT (MOG-541): the keeper must quote USDC->WETH->DIEM off-chain and pass a floor
+// net of acceptable slippage. It is REQUIRED (no default) so a swap can never settle at full
+// slippage; a misconfigured cron reverts rather than routing into a sandwich.
+//
 // v6 adapters:  AntSeed 0x8885B256609e1D7C1FB2f1dB58a379D2efb8bbf3
 //               Surplus 0xf50ca14f49bD090fC13680019Ed8dF5046626e8b
 //
 // Run (cron this; keeper key from ~/.splits/config.json):
-//   ADAPTER=<adapter> [AMOUNT=<usdc 6dec, 0/unset = full keeper balance>] KEEPER_PK=<pk> \
+//   ADAPTER=<adapter> MIN_DIEM_OUT=<diem 18dec floor> \
+//   [AMOUNT=<usdc 6dec, 0/unset = full keeper balance>] KEEPER_PK=<pk> \
 //   forge script script/vault/KeeperRelay.s.sol --tc KeeperRelay --rpc-url $BASE_RPC_URL --broadcast
 //
 // Dry-run: drop --broadcast. Reverts harmlessly with "no USDC" when there's nothing to route,
@@ -33,7 +38,7 @@ interface IERC20 {
 
 interface IInferenceAdapter {
     function receiveSettlement(uint256 usdcAmount) external;
-    function routeYield() external;
+    function routeYield(uint256 minDiemOut) external;
     function vault() external view returns (address);
     function usdc() external view returns (address);
 }
@@ -55,13 +60,16 @@ contract KeeperRelay is Script {
         require(amount > 0, "no USDC to relay");
         require(amount <= bal, "AMOUNT exceeds keeper USDC balance");
 
+        // MOG-541: required off-chain slippage floor for the USDC->WETH->DIEM swap.
+        uint256 minDiemOut = vm.envUint("MIN_DIEM_OUT");
+
         vm.startBroadcast(pk);
         // Push keeper USDC into the adapter, then route it to DIEM/creditDIEM.
         if (IERC20(USDC).allowance(keeper, adapter) < amount) {
             IERC20(USDC).approve(adapter, amount);
         }
         IInferenceAdapter(adapter).receiveSettlement(amount);
-        IInferenceAdapter(adapter).routeYield();
+        IInferenceAdapter(adapter).routeYield(minDiemOut);
         vm.stopBroadcast();
 
         console.log("relayed USDC (6dec):", amount);

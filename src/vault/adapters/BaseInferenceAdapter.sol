@@ -34,15 +34,18 @@ interface IDIEM {
 ///
 /// Revenue flow:
 ///   1. Settlement USDC accumulates via receiveSettlement() (or venue-specific paths).
-///   2. routeYield() (onlyOperator) swaps USDC→WETH→DIEM via Uniswap V3 multi-hop.
+///   2. routeYield(minDiemOut) (onlyOperator) swaps USDC→WETH→DIEM via Uniswap V3
+///      multi-hop, enforcing minDiemOut as the swap's amountOutMinimum.
 ///   3. holderDiem  = diemOut × (10_000 − operatorFeeBps) / 10_000
 ///        → vault.creditDIEM()    — raises wstDIEM rate for ALL holders
 ///   4. operatorDiem = diemOut × operatorFeeBps / 10_000
 ///        → vault.creditWstDIEM() — mints wstDIEM to this adapter at the current rate
 ///           (no entry fee), compounding the operator's position.
 ///
-/// routeYield is onlyOperator (not permissionless) because amountOutMinimum=0 makes
-/// it sandwichable. The operator is expected to time calls and check pricing off-chain.
+/// routeYield is onlyOperator (not permissionless). The caller supplies minDiemOut —
+/// the swap reverts if it would deliver less, so a sandwiched/under-delivering swap
+/// fails rather than crediting a manipulated amount. The operator computes minDiemOut
+/// off-chain from a fresh quote net of acceptable slippage (MOG-541).
 abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
     using SafeERC20 for IERC20;
 
@@ -120,13 +123,16 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
     }
 
     function pendingYieldInDIEM() external pure returns (uint256) {
-        return 0; // tracked off-chain; USDC accumulates in contract until routeYield()
+        return 0; // tracked off-chain; USDC accumulates in contract until routeYield(minDiemOut)
     }
 
     // ─── IInferenceToken — yield routing ─────────────────────────────────────
     /// @notice Swap accumulated USDC to DIEM and credit the vault.
-    ///         onlyOperator — caller is trusted (amountOutMinimum=0, sandwich-able).
-    function routeYield() external onlyOperator {
+    /// @param  minDiemOut Minimum DIEM the multi-hop swap must deliver (the swap's
+    ///         amountOutMinimum). The operator computes this off-chain from a fresh
+    ///         quote net of acceptable slippage; the swap reverts if it would deliver
+    ///         less, so a sandwiched/under-delivering swap fails (MOG-541).
+    function routeYield(uint256 minDiemOut) external onlyOperator {
         uint256 usdcBal = IERC20(usdc).balanceOf(address(this));
         require(usdcBal > 0, "no USDC to route");
 
@@ -140,7 +146,10 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
         uint256 diemOut = ISwapRouterV3Hop(swapRouter)
             .exactInput(
                 ISwapRouterV3Hop.ExactInputParams({
-                    path: path, recipient: address(this), amountIn: usdcBal, amountOutMinimum: 0
+                    path: path,
+                    recipient: address(this),
+                    amountIn: usdcBal,
+                    amountOutMinimum: minDiemOut
                 })
             );
         require(diemOut > 0, "swap returned 0");
@@ -168,7 +177,7 @@ abstract contract BaseInferenceAdapter is IInferenceToken, Ownable {
 
     // ─── Settlement entry ────────────────────────────────────────────────────
     /// @notice Accept USDC from the authorised venue settlement contract.
-    ///         Accumulates until routeYield() is called.
+    ///         Accumulates until routeYield(minDiemOut) is called.
     function receiveSettlement(uint256 usdcAmount) external onlyAuthorized {
         IERC20(usdc).safeTransferFrom(msg.sender, address(this), usdcAmount);
         emit SettlementReceived(usdcAmount);
