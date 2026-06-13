@@ -206,3 +206,23 @@ forge script script/vault/KeeperRelay.s.sol --tc KeeperRelay --rpc-url $BASE_RPC
 ```
 
 It pushes the keeper's USDC into the adapter (`receiveSettlement`) then calls `routeYield(minDiemOut)` — USDC→WETH→DIEM, then **90% `creditDIEM`** (raises the wstDIEM rate for ALL holders = yield) + **10%** to the adapter as operator wstDIEM. Optional `AMOUNT=<usdc 6dec>` for a partial relay (attribute per-venue off-chain). Reverts harmlessly with "no USDC to relay" when empty — safe to cron on a tight interval. `routeYield(minDiemOut)` enforces a caller-supplied slippage floor on the USDC→WETH→DIEM swap (MOG-541 fix, live on the redeployed adapters), so set `MIN_DIEM_OUT` from a fresh quote. Off-chain prerequisite: AntSeed + Surplus must be configured to pay settlement USDC to the keeper (see `docs/vault/V6_LAUNCH.md` + the marketplace setup).
+
+---
+
+## Automated Compounding — `keeper-compound.sh`
+
+`script/vault/keeper-compound.sh` wraps the relay for unattended/scheduled use:
+gates on a minimum USDC balance (skips dust), pulls a **fresh Uniswap QuoterV2
+quote** for USDC→WETH→DIEM, derives `MIN_DIEM_OUT` net of slippage, then runs
+`KeeperRelay.s.sol`. Cron-safe — clean exit below threshold; the `minDiemOut`
+floor makes the swap revert rather than route into a sandwich (MOG-541).
+
+```bash
+# hourly, SurplusAdapter (default), full balance, 2% floor, skip < $5:
+0 * * * * BASE_RPC_URL=<dedicated RPC> /abs/path/to/script/vault/keeper-compound.sh >> ~/keeper-compound.log 2>&1
+```
+
+Env knobs: `ADAPTER` (default v6 Surplus `0x91b3E39E…`), `AMOUNT` (default full
+balance), `MIN_USDC` (default `5000000` = $5), `SLIPPAGE_BPS` (default `200` = 2%),
+`DRY_RUN=1`, `KEEPER_PK` (default `~/.splits/config.json`). **Point `BASE_RPC_URL`
+at a dedicated endpoint** (Alchemy/QuickNode) — public RPCs return 401 under load.
