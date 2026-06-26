@@ -36,16 +36,17 @@ The problem: raw staked DIEM is illiquid and clunky. You can't easily trade it, 
 
 The mental model is **wstETH for AI inference**. You hold a fixed share count; each share redeems for a growing amount of DIEM as inference revenue accrues. No claiming, no rebasing of balances — just a rising exchange rate.
 
-```
-   Venice AI                DIEM (perpetuity:           wstDIEM
-   inference      ──────►   $1/day inference    ──────► (liquid, fungible,
-   capacity                 per staked DIEM)             yield-bearing claim)
-       ▲                                                      │
-       │                                                      │ composable:
-       │      USDC paid for inference                         ▼ lend / LP / lever /
-       └──────────────────────────────────────────────  agent denomination
-              (swapped → DIEM → credited to vault,
-               raising the wstDIEM exchange rate)
+```mermaid
+flowchart LR
+    V["Venice AI<br/>inference capacity"]
+    D["DIEM<br/>perpetuity:<br/>$1/day inference<br/>per staked DIEM"]
+    W["wstDIEM<br/>liquid, fungible,<br/>yield-bearing claim"]
+    C["Composable:<br/>lend · LP · lever ·<br/>agent denomination"]
+
+    V -->|stake| D
+    D -->|pool & wrap| W
+    W --> C
+    W -.->|"USDC paid for inference<br/>→ swapped to DIEM<br/>→ credited to vault<br/>(rate ↑)"| V
 ```
 
 "Tokenizing inference" = turning Venice's $1/day/DIEM entitlement into a liquid token whose value tracks real inference revenue.
@@ -120,24 +121,30 @@ This is the core of the doc. There are four distinct flows. In all of them, **DI
 
 Five entry paths, all landing in the same place — `InferenceVault.deposit()`, which charges a **2.5% deposit fee** (minted to treasury as shares, *not* skimmed from your DIEM) and immediately stakes the rest.
 
-```
-                                            ┌─────────────────────────────┐
-  (A) DIEM ───────────────────────────────►│                             │
-                                            │      InferenceVault         │
-  (B) WETH ──► Router.depositWETH           │                             │
-        └─ Uni V3 WETH→DIEM (1% pool) ─────►│  deposit():                 │
-                                            │   • fee 2.5% → treasury     │
-  (C) VVV ──► Router.depositVVV             │     (as wstDIEM shares)     │──► wstDIEM
-        └─ stake→sVVV→mintDiem → DIEM ─────►│   • DIEM.stake() the rest   │    to receiver
-                                            │   • mint shares to receiver │
-  (D) DIEM ──► SurplusStakingWrapper        │                             │
-        └─ + referral event ───────────────►│  DIEM → sDIEM (Venice)      │
-                                            │                             │
-  (E) DIEM ──► Router.loopDeposit           │                             │
-        └─ Morpho flash-borrow DIEM,        └─────────────────────────────┘
-           deposit (yours + borrowed),
-           supply wstDIEM collateral,
-           borrow DIEM to repay flash  ──► leveraged wstDIEM (≤ ~4.35× @ 77% LLTV)
+```mermaid
+flowchart LR
+    A["(A) DIEM<br/>direct"]
+    B["(B) WETH<br/>Router.depositWETH<br/>Uni V3 WETH→DIEM (1%)"]
+    C["(C) VVV<br/>Router.depositVVV<br/>stake→sVVV→mintDiem"]
+    D["(D) DIEM<br/>SurplusStakingWrapper<br/>+ referral event"]
+    E["(E) DIEM<br/>Router.loopDeposit<br/>Morpho flash-borrow"]
+
+    subgraph Vault["InferenceVault.deposit()"]
+        direction TB
+        F1["fee 2.5% → treasury<br/>(as wstDIEM shares)"]
+        F2["DIEM.stake() the rest<br/>→ sDIEM on Venice"]
+        F3["mint shares to receiver"]
+        F1 --> F2 --> F3
+    end
+
+    A --> Vault
+    B --> Vault
+    C --> Vault
+    D --> Vault
+    E -->|"deposit yours + borrowed,<br/>post wstDIEM collateral,<br/>borrow DIEM to repay flash"| Vault
+
+    Vault --> OUT["wstDIEM to receiver"]
+    E -.->|leverage| LEV["leveraged wstDIEM<br/>≤ ~4.35× @ 77% LLTV"]
 ```
 
 - **(A) Direct DIEM** is cheapest (just the 2.5% fee). **(B) WETH** and **(C) VVV** add an external AMM hop. **(D)** is (A) plus a referral event. **(E)** is the leverage loop — one transaction that flash-borrows DIEM against Morpho, deposits the combined amount, and posts the resulting wstDIEM as collateral.
@@ -148,32 +155,28 @@ Five entry paths, all landing in the same place — `InferenceVault.deposit()`, 
 
 This is the engine. Three independent revenue channels all converge on `creditDIEM()`, raising the rate for every holder.
 
-```
- ┌───────────────────────── CHANNEL 1: Venice inference revenue ─────────────────────────┐
- │                                                                                        │
- │  Inference buyer ──USDC──► AntSeed / Surplus / X402 venue ──USDC──► Venue Adapter       │
- │                                                                       │                │
- │                                            routeYield(minDiemOut):    │                │
- │                                             USDC ─Uni V3─► WETH ─Uni V3─► DIEM          │
- │                                                                       │                │
- │                                       ┌───── 90% ──► vault.creditDIEM(holderDiem)       │
- │                                       │              (rate ↑ for ALL holders)           │
- │                                       └───── 10% ──► vault.creditWstDIEM(adapter)       │
- │                                                      (protocol cut, compounds as wstDIEM)│
- └────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CH1["CHANNEL 1 · Venice inference revenue"]
+        direction LR
+        BUY["Inference buyer"] -->|USDC| VEN["AntSeed / Surplus / X402<br/>venue"]
+        VEN -->|USDC| ADP["Venue Adapter<br/>routeYield(minDiemOut):<br/>USDC →Uni V3→ WETH →Uni V3→ DIEM"]
+        ADP -->|"90%"| CD1["vault.creditDIEM(holderDiem)<br/>rate ↑ for ALL holders"]
+        ADP -->|"10%"| CW["vault.creditWstDIEM(adapter)<br/>protocol cut, compounds as wstDIEM"]
+    end
 
- ┌──────────────────────── CHANNEL 2: Liquid Protocol fees ──────────────────────────────┐
- │                                                                                        │
- │  Token-launch trading fees ──WETH/USDC/VVV──► FeeRouter ──per-token FeeMode──►          │
- │     CREDIT_VAULT: swap → DIEM → vault.creditDIEM()        (rate ↑ for all)              │
- │     CURVE_VOL:    → DIEM/wstDIEM Curve LP                 (earns trading fees)          │
- │     HOLD:         accumulate until owner decides                                        │
- └────────────────────────────────────────────────────────────────────────────────────────┘
+    subgraph CH2["CHANNEL 2 · Liquid Protocol fees"]
+        direction LR
+        FEE["Token-launch trading fees<br/>WETH / USDC / VVV"] --> FR["FeeRouter<br/>per-token FeeMode"]
+        FR -->|CREDIT_VAULT| CD2["swap → DIEM → vault.creditDIEM()<br/>rate ↑ for all"]
+        FR -->|CURVE_VOL| CV["DIEM/wstDIEM Curve LP<br/>earns trading fees"]
+        FR -->|HOLD| HD["accumulate until owner decides"]
+    end
 
- ┌──────────────────────── CHANNEL 3: Morpho borrowing interest ─────────────────────────┐
- │  Supply DIEM to the wstDIEM/DIEM market → earn borrower interest.                       │
- │  (Separate from the vault rate; only if you choose to supply.)                          │
- └────────────────────────────────────────────────────────────────────────────────────────┘
+    subgraph CH3["CHANNEL 3 · Morpho borrowing interest"]
+        direction LR
+        SUP["Supply DIEM to wstDIEM/DIEM market"] --> INT["earn borrower interest<br/>(separate from rate; opt-in)"]
+    end
 ```
 
 Key points:
@@ -187,26 +190,16 @@ Key points:
 
 Withdrawals are **asynchronous** because Venice imposes a ~24h unstake cooldown, and Venice allows only one pending unstake per address. Instant `withdraw`/`redeem` are disabled (they return 0). The queue batches users to amortize that single cooldown slot.
 
-```
-  1. requestRedeem(shares, receiver)         [user]
-        • burns your shares NOW
-        • locks DIEM at the CURRENT rate → pendingWithdrawalDiem += diem
-        • adds you to the open batch (max 50 users)
-        • returns requestId
-                          │
-                          ▼
-  2. flush()                                  [permissionless keeper]
-        • allowed after minBatchOpenSecs (~1 day) OR when batch hits 50 users
-        • DIEM.initiateUnstake(batchTotal) → batch enters ~24h cooldown
-                          │
-                          ▼   (~24h Venice cooldown)
-  3. settle()                                 [permissionless]
-        • after cooldown: DIEM.unstake() → DIEM returns to vault balance
-                          │
-                          ▼
-  4. claimRedeem(requestId)                   [permissionless]
-        • sends your locked DIEM to the stored receiver
-        • pendingWithdrawalDiem -= your diem
+```mermaid
+flowchart TB
+    S1["1 · requestRedeem(shares, receiver) — [user]<br/>burns your shares NOW · locks DIEM at CURRENT rate<br/>pendingWithdrawalDiem += diem · adds you to open batch (max 50)<br/>returns requestId"]
+    S2["2 · flush() — [permissionless keeper]<br/>after minBatchOpenSecs (~1 day) OR batch hits 50 users<br/>DIEM.initiateUnstake(batchTotal)"]
+    S3["3 · settle() — [permissionless]<br/>after cooldown: DIEM.unstake()<br/>DIEM returns to vault balance"]
+    S4["4 · claimRedeem(requestId) — [permissionless]<br/>sends locked DIEM to stored receiver<br/>pendingWithdrawalDiem -= your diem"]
+
+    S1 --> S2
+    S2 -->|"~24h Venice cooldown"| S3
+    S3 --> S4
 ```
 
 - **Total time ≈ 2 days** (≤1-day batch window + ~24h cooldown). The old "14 days" figure was the v4 vault — ignore it.
@@ -226,10 +219,11 @@ Withdrawals are **asynchronous** because Venice imposes a ~24h unstake cooldown,
 
 The protocol takes exactly two cuts, both compounding rather than extractive, both landing at the **Safe / treasury**:
 
-```
-  Deposit fee  (2.5% of each deposit)  ──► minted as wstDIEM to treasury
-  Operator cut (10% of inference yield) ──► creditWstDIEM(adapter) → adapter holds wstDIEM
-                                            (adapter owned by Safe)
+```mermaid
+flowchart LR
+    DEP["Deposit fee<br/>2.5% of each deposit"] -->|minted as wstDIEM| T["Safe / treasury"]
+    OP["Operator cut<br/>10% of inference yield"] -->|"creditWstDIEM(adapter)"| ADP["adapter holds wstDIEM<br/>(adapter owned by Safe)"]
+    ADP --> T
 ```
 
 There is **no withdrawal fee, no performance fee, no management fee.** The optional `yieldFeeBps` (≤20%, default 5%) skims a few shares to treasury when adapters credit yield. External AMM fees (Uniswap, Curve) are paid to those venues, not the protocol — see the swap-cost table in `wstdiem-economics.md`.
