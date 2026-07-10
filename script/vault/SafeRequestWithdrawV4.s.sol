@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+// ⚠ DEPRECATED — DO NOT USE. This script calls `requestWithdraw(shares)` on the old v4 vault,
+// but that function does NOT exist in the deployed v4 bytecode (`0x4751BA2b…`) — the call reverts
+// GS013 (verified on-chain 2026-07-10 against the Etherscan-verified source). The deployed v4 is a
+// standard ERC-4626 with NO batch (requestWithdraw/flushBatch/settleBatch/claimBatch) flow.
+// The correct, USED recovery path is:
+//   SafeEnableWithdrawals.s.sol → SafeInitiateUnstakeV4.s.sol → completeUnstake() (permissionless)
+//   after ~24h Venice cooldown → SafeRedeemV4.s.sol.
+// MOG-520 was recovered this way (2.746136 DIEM to the Safe, 2026-07-10). Kept only for history.
+
 import {Script, console} from "forge-std/Script.sol";
 
 interface ISafe {
