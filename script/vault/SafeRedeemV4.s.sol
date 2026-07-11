@@ -59,13 +59,19 @@ contract SafeRedeemV4 is Script {
         uint256 shares = IVault(OLD_VAULT).balanceOf(SAFE);
         uint256 redeemable = IVault(OLD_VAULT).maxRedeem(SAFE);
         require(shares > 0, "Safe has no v4 shares");
-        require(redeemable >= shares, "not fully redeemable: run completeUnstake() first / wait cooldown");
+        require(
+            redeemable >= shares,
+            "not fully redeemable: run completeUnstake() first / wait cooldown"
+        );
         console.log("Redeeming shares:", shares);
         console.log("Expected DIEM out:", IVault(OLD_VAULT).previewRedeem(shares));
 
         vm.startBroadcast(vm.envUint("EXECUTOR_PK"));
         // redeem(shares, receiver=SAFE, owner=SAFE) — msg.sender is the Safe via execTransaction
-        _execSafe(OLD_VAULT, abi.encodeWithSignature("redeem(uint256,address,address)", shares, SAFE, SAFE));
+        _execSafe(
+            OLD_VAULT,
+            abi.encodeWithSignature("redeem(uint256,address,address)", shares, SAFE, SAFE)
+        );
         console.log("redeem() sent. DIEM delivered to the Safe.");
         vm.stopBroadcast();
     }
@@ -82,7 +88,8 @@ contract SafeRedeemV4 is Script {
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(lower, txHash);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(higher, txHash);
         bytes memory sigs = abi.encodePacked(r1, s1, v1, r2, s2, v2);
-        bool ok = safe.execTransaction(to, 0, data, 0, 0, 0, 0, address(0), payable(address(0)), sigs);
+        bool ok =
+            safe.execTransaction(to, 0, data, 0, 0, 0, 0, address(0), payable(address(0)), sigs);
         require(ok, "Safe tx failed");
     }
 }

@@ -59,7 +59,7 @@ contract SafeDepositV6 is Script {
     address constant SK1_ADDR = 0x8f60eB404a5CA868f37bc798ec4c54FA0dcCFC9F;
 
     // Exact DIEM recovered from the v4 vault redeem (2.746136... DIEM).
-    uint256 constant DIEM_AMOUNT = 2746136181161634959;
+    uint256 constant DIEM_AMOUNT = 2_746_136_181_161_634_959;
 
     uint256 sk1;
     uint256 sk2;

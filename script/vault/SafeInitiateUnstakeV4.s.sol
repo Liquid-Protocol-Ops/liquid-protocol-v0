@@ -32,7 +32,10 @@ interface ISafe {
 }
 
 interface IDIEM {
-    function stakedInfos(address) external view returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
+    function stakedInfos(address)
+        external
+        view
+        returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
 }
 
 /// @notice Calls initiateUnstake(amount) on old InferenceVault v4 via the Safe (owner), unstaking the
@@ -63,7 +66,9 @@ contract SafeInitiateUnstakeV4 is Script {
 
         vm.startBroadcast(vm.envUint("EXECUTOR_PK"));
         _execSafe(OLD_VAULT, abi.encodeWithSignature("initiateUnstake(uint256)", staked));
-        console.log("initiateUnstake() sent. Wait ~24h, then completeUnstake() (permissionless), then redeem().");
+        console.log(
+            "initiateUnstake() sent. Wait ~24h, then completeUnstake() (permissionless), then redeem()."
+        );
         vm.stopBroadcast();
     }
 
@@ -79,7 +84,8 @@ contract SafeInitiateUnstakeV4 is Script {
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(lower, txHash);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(higher, txHash);
         bytes memory sigs = abi.encodePacked(r1, s1, v1, r2, s2, v2);
-        bool ok = safe.execTransaction(to, 0, data, 0, 0, 0, 0, address(0), payable(address(0)), sigs);
+        bool ok =
+            safe.execTransaction(to, 0, data, 0, 0, 0, 0, address(0), payable(address(0)), sigs);
         require(ok, "Safe tx failed");
     }
 }
