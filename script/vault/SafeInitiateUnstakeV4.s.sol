@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-// ⚠ DEPRECATED — DO NOT USE. This script calls `requestWithdraw(shares)` on the old v4 vault,
-// but that function does NOT exist in the deployed v4 bytecode (`0x4751BA2b…`) — the call reverts
-// GS013 (verified on-chain 2026-07-10 against the Etherscan-verified source). The deployed v4 is a
-// standard ERC-4626 with NO batch (requestWithdraw/flushBatch/settleBatch/claimBatch) flow.
-// The correct, USED recovery path is:
-//   SafeEnableWithdrawals.s.sol → SafeInitiateUnstakeV4.s.sol → completeUnstake() (permissionless)
-//   after ~24h Venice cooldown → SafeRedeemV4.s.sol.
-// MOG-520 was recovered this way (2.746136 DIEM to the Safe, 2026-07-10). Kept only for history.
-
 import {Script, console} from "forge-std/Script.sol";
 
 interface ISafe {
@@ -40,22 +31,25 @@ interface ISafe {
     function nonce() external view returns (uint256);
 }
 
-interface IERC20 {
-    function balanceOf(address account) external view returns (uint256);
+interface IDIEM {
+    function stakedInfos(address)
+        external
+        view
+        returns (uint256 amountStaked, uint256 coolDownEnd, uint256 coolDownAmount);
 }
 
-/// @notice Calls requestWithdraw(shares) on old InferenceVault v4, routing through the Safe
-///         (Safe holds the wstDIEM so Safe must be the caller).
-///         Run this on June 18 AFTER SafeEnableWithdrawals.s.sol has been executed.
-///         After this: call flushBatch() → wait ~24h → settleBatch() → claimBatch(batchId).
+/// @notice Calls initiateUnstake(amount) on old InferenceVault v4 via the Safe (owner), unstaking the
+///         vault's full staked DIEM. Starts the Venice ~24h cooldown. After ~24h call completeUnstake()
+///         (permissionless) to move DIEM to idle, then redeem() the Safe's shares.
+///         NOTE: the deployed v4 has NO requestWithdraw/flushBatch — it's ERC4626 redeem gated by
+///         withdrawalsEnabled + idle DIEM. This is the correct sequence (verified vs Etherscan source).
 ///
-/// Run:
-///   BASE_RPC_URL=<url> SAFE_SK1=<bytes32> SAFE_SK2=<bytes32> EXECUTOR_PK=<uint256> \
-///   forge script script/vault/SafeRequestWithdrawV4.s.sol \
-///     --rpc-url $BASE_RPC_URL --broadcast
-contract SafeRequestWithdrawV4 is Script {
+/// Run: SAFE_SK1=<bytes32> SAFE_SK2=<bytes32> EXECUTOR_PK=<uint256> BASE_RPC_URL=<url> \
+///   forge script script/vault/SafeInitiateUnstakeV4.s.sol --tc SafeInitiateUnstakeV4 --rpc-url $BASE_RPC_URL --broadcast
+contract SafeInitiateUnstakeV4 is Script {
     address constant SAFE = 0x872c561f699B42977c093F0eD8b4C9a431280c6c;
     address constant OLD_VAULT = 0x4751BA2b09374C1929FC01734a166e3c8cd75810;
+    address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
 
     uint256 sk1;
     uint256 sk2;
@@ -66,36 +60,29 @@ contract SafeRequestWithdrawV4 is Script {
     }
 
     function run() external {
-        uint256 executorPk = vm.envUint("EXECUTOR_PK");
-        vm.startBroadcast(executorPk);
+        (uint256 staked,,) = IDIEM(DIEM).stakedInfos(OLD_VAULT);
+        require(staked > 0, "vault has no staked DIEM");
+        console.log("Initiating unstake of vault staked DIEM:", staked);
 
-        uint256 shares = IERC20(OLD_VAULT).balanceOf(SAFE);
-        require(shares > 0, "Safe has no wstDIEM v4 shares");
-        console.log("Requesting withdrawal of shares:", shares);
-
-        _execSafe(OLD_VAULT, abi.encodeWithSignature("requestWithdraw(uint256)", shares));
-        console.log("requestWithdraw() sent for", shares, "shares.");
-        console.log("Next: cast send OLD_VAULT 'flushBatch()' --private-key $KEEPER_PK");
-        console.log("Then wait ~24h and call settleBatch(), then claimBatch(batchId).");
-
+        vm.startBroadcast(vm.envUint("EXECUTOR_PK"));
+        _execSafe(OLD_VAULT, abi.encodeWithSignature("initiateUnstake(uint256)", staked));
+        console.log(
+            "initiateUnstake() sent. Wait ~24h, then completeUnstake() (permissionless), then redeem()."
+        );
         vm.stopBroadcast();
     }
 
     function _execSafe(address to, bytes memory data) internal {
         ISafe safe = ISafe(SAFE);
         uint256 nonce = safe.nonce();
-
         bytes32 txHash =
             safe.getTransactionHash(to, 0, data, 0, 0, 0, 0, address(0), address(0), nonce);
-
         address addr1 = vm.addr(sk1);
         address addr2 = vm.addr(sk2);
         uint256 lower = addr1 < addr2 ? sk1 : sk2;
         uint256 higher = addr1 < addr2 ? sk2 : sk1;
-
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(lower, txHash);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(higher, txHash);
-
         bytes memory sigs = abi.encodePacked(r1, s1, v1, r2, s2, v2);
         bool ok =
             safe.execTransaction(to, 0, data, 0, 0, 0, 0, address(0), payable(address(0)), sigs);

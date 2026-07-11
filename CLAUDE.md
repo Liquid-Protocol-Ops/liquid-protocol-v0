@@ -137,10 +137,13 @@ All vault scripts live in `script/vault/`:
 
 The directory holds ~20 scripts beyond these four. Owner-only actions follow the `Safe*.s.sol` naming and all use the `SafeBatch` signing pattern above (`SAFE_SK1`/`SAFE_SK2`/`EXECUTOR_PK`): e.g. `SafeEnableWithdrawals`, `SafeAddV4LP`, `SafeManageV4LP`, `SafeSeedCapital`, `SafeKeeperSetup`. Deploy variants include `DeployAndWireAdapters`, `DeployCurvePool`, `DeployMorphoMarketsV2`, `CreateMorphoMarket75`.
 
-**Old v4 vault withdrawal sequence (MOG-520, ~June 17–18 UTC)** — the Safe holds the v4 wstDIEM, so each step routes through the Safe:
-1. `SafeEnableWithdrawals.s.sol` — enable withdrawals on the old vault.
-2. `SafeRequestWithdrawV4.s.sol` — `requestWithdraw(shares)` for the Safe's full v4 balance.
-3. `cast send <OLD_VAULT> 'flushBatch()'` (keeper) → wait ~24h → `settleBatch()` → `claimBatch(batchId)`.
+**Old v4 vault withdrawal/recovery sequence (MOG-520) — COMPLETED 2026-07-10; recovered 2.746136 DIEM to the Safe.** The Safe holds the v4 wstDIEM, so owner-only steps route through the Safe. ⚠ The **deployed** v4 vault (`0x4751BA2b09374C1929FC01734a166e3c8cd75810`) is a standard **ERC-4626** — its `maxRedeem`/`maxWithdraw` are gated by `withdrawalsEnabled` AND the vault's idle (unstaked) DIEM balance. It has **NO** `requestWithdraw`/`flushBatch`/`settleBatch`/`claimBatch` batch flow (that interface reverts GS013 on the live bytecode; verified against Etherscan source). Correct recovery flow:
+1. `SafeEnableWithdrawals.s.sol` — `enableWithdrawals()` on the old vault (owner).
+2. `SafeInitiateUnstakeV4.s.sol` — `initiateUnstake(stakedAmount)` (owner) → starts Venice's ~24h unstake cooldown.
+3. `cast send <OLD_VAULT> 'completeUnstake()'` (permissionless, any funded EOA) after the cooldown → moves cooled DIEM into the vault's idle balance, unblocking `maxRedeem`.
+4. `SafeRedeemV4.s.sol` — `redeem(shares, Safe, Safe)` (owner) → DIEM to the Safe.
+
+To redeploy recovered DIEM into the live v6 vault: `SafeDepositV6.s.sol` (`approve` + `deposit(amount, Safe)`, 2.5% entry fee).
 
 See `docs/vault/KEEPER_RUNBOOK.md` for the authoritative ops procedure.
 

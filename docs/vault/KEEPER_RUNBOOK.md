@@ -182,11 +182,12 @@ export DEPLOYER_V6_PK=$(op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credentia
 
 | Date | Action |
 |------|--------|
-| 2026-06-04 | Run `SafeInitiateWithdrawals.s.sol` on old vault v4 — starts 14-day timelock (MOG-520) |
-| 2026-06-18 | Run `SafeEnableWithdrawals.s.sol` — then requestWithdraw / flushBatch / wait 24h / claimBatch → ~2.756 DIEM to Safe |
-| After June 18 | Deposit recovered DIEM into v5 per GROWTH_PLAN.md Phase 0–1 |
+| 2026-06-04 | Run `SafeInitiateWithdrawals.s.sol` on old vault v4 (MOG-520) |
+| 2026-07-09 | `enableWithdrawals()` (`SafeEnableWithdrawals.s.sol`) + `initiateUnstake(stakedAmount)` (`SafeInitiateUnstakeV4.s.sol`) → starts Venice ~24h cooldown |
+| 2026-07-10 | After cooldown: `completeUnstake()` (permissionless) → `redeem()` (`SafeRedeemV4.s.sol`) → **2.746136 DIEM recovered to Safe** ✅ |
+| 2026-07-10 | Redeployed recovered DIEM into **v6** vault via `SafeDepositV6.s.sol` → 2.664812 wstDIEM to Safe (2.5% entry fee) |
 
-> **Note:** July 1 was the original target assuming June 17 initiation. Initiating today cuts 13 days off the timeline. MOG-520 can be updated accordingly.
+> **⚠ Interface correction (2026-07-10):** the deployed v4 vault is a **standard ERC-4626**, NOT the `requestWithdraw / flushBatch / settleBatch / claimBatch` batch flow earlier docs described (that reverts GS013 on the live bytecode — verified vs Etherscan source). Real flow = `enableWithdrawals` → `initiateUnstake` → wait ~24h → `completeUnstake` (permissionless) → `redeem`. `SafeRequestWithdrawV4.s.sol` matches no deployed vault (see its deprecation header). There is no 14-day timelock on v4 — the 24h figure is Venice's DIEM unstake cooldown.
 
 ---
 
