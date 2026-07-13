@@ -82,22 +82,26 @@ interface IVault {
     function convertToAssets(uint256 shares) external view returns (uint256);
 }
 
-/// @notice Fork rehearsal of the live wstDIEM/VVV Morpho market (MOG-544) against the
-///         REAL deployed contracts on Base: vault v5, oracle 0xC76e…, market 0xab03….
+/// @notice Fork rehearsal of the LIVE wstDIEM/VVV Morpho market (MOG-544) against the
+///         REAL deployed v6 contracts on Base: vault v6, oracle 0x9E98…, market 0x9262….
 ///         Stage 1 — economics (VVV→DIEM mint ratio) + the borrow side. Liquidation
 ///         unwind (Curve→Aerodrome) follows in a later stage.
+/// @dev Corrected 2026-07-13: this test previously pointed at a DEAD market collateralized
+///      by the superseded v5 vault (WSTDIEM 0xb9f23c33…, oracle 0xC76e2fe5…, market
+///      0xab034569…) — same LLTV/IRM as the real one, so it silently fork-tested inert
+///      infrastructure instead of what's actually live. See docs/vault/mainnet-addresses.md.
 /// Run: BASE_RPC_URL=<url> forge test --match-path "test/vault/integration/VvvMarketLifecycle.t.sol" -vv
 contract VvvMarketLifecycleTest is Test {
-    // Real Base mainnet deployments
+    // Real Base mainnet deployments (v6)
     address constant DIEM = 0xF4d97F2da56e8c3098f3a8D538DB630A2606a024;
     address constant VVV = 0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf; // liquid VVV
     address constant SVVV = 0x321b7ff75154472B18EDb199033fF4D116F340Ff; // staking → sVVV
-    address constant WSTDIEM = 0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D; // InferenceVault v5
-    address constant ORACLE = 0xC76e2fe5176B432035Def5362023a8DF36bEE94E;
+    address constant WSTDIEM = 0xe49FA849cB37b0e7A42B2335e333fb99474167ba; // InferenceVault v6
+    address constant ORACLE = 0x9E982637f26aAaAd0bfDBe3c6c1846120C4E5A62; // WstDiemVvvOracle (v6, granularity 24)
     address constant MORPHO = 0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb;
     address constant IRM = 0x46415998764C29aB2a25CbeA6254146D50D22687;
     uint256 constant LLTV = 625e15; // 62.5%
-    address constant CURVE = 0xB9c7F62e4EeC145bFa1C6bBc5fFdFf246181FdA2; // DIEM/wstDIEM StableSwap
+    address constant CURVE = 0x21c33a1Bb5f6Eb43563e1fB9e7AA1D4E90C1A0CD; // DIEM/wstDIEM StableSwap (v6)
 
     MarketParams mp;
     bytes32 marketId;
@@ -111,8 +115,8 @@ contract VvvMarketLifecycleTest is Test {
             loanToken: VVV, collateralToken: WSTDIEM, oracle: ORACLE, irm: IRM, lltv: LLTV
         });
         marketId = keccak256(abi.encode(mp));
-        // confirm we forked past the deploy and hit the real market
-        assertEq(marketId, 0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8);
+        // confirm we forked past the deploy and hit the real (v6) market
+        assertEq(marketId, 0x9262c400a82397a3191bb139f824c04c692647d60a45b1c2183a91ffce7ca615);
     }
 
     /// The gating economic fact: how much DIEM does staking VVV + mintDiem yield?
@@ -282,10 +286,13 @@ contract VvvMarketLifecycleTest is Test {
 
     // Aerodrome DIEM/VVV pool TWAP: VVV out for `amountIn` of `tokenIn`.
     address constant AERO_POOL = 0xbB345D35450BF9Ee76F3D2cE214E8e7AC5e1071d;
+    uint256 constant AERO_GRANULARITY = 24; // must match the deployed v6 oracle's TWAP window
 
     function _aeroQuote(address tokenIn, uint256 amountIn) internal view returns (uint256) {
         (bool ok, bytes memory ret) = AERO_POOL.staticcall(
-            abi.encodeWithSignature("quote(address,uint256,uint256)", tokenIn, amountIn, uint256(2))
+            abi.encodeWithSignature(
+                "quote(address,uint256,uint256)", tokenIn, amountIn, AERO_GRANULARITY
+            )
         );
         require(ok, "aero quote failed");
         return abi.decode(ret, (uint256));

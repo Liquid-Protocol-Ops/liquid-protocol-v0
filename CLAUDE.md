@@ -107,7 +107,7 @@ ERC-4626 vault that wraps staked DIEM (sDIEM) from Venice AI protocol. wstDIEM i
 | SurplusAdapter | `0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F` |
 | Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` |
 
-wstDIEM/VVV Morpho market (MOG-544, created 2026-06-05, **unseeded — borrows gated on liquidation depth, MOG-536**): ID `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8` — collateral wstDIEM, loan **liquid VVV** `0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf`, oracle `0xC76e2fe5176B432035Def5362023a8DF36bEE94E`, IRM `0x46415998764C29aB2a25CbeA6254146D50D22687`.
+wstDIEM/VVV Morpho market, **v6** (MOG-544, **unseeded — borrows gated on liquidation depth, MOG-536**): ID `0x9262c400a82397a3191bb139f824c04c692647d60a45b1c2183a91ffce7ca615` — collateral wstDIEM v6 `0xe49FA849cB37b0e7A42B2335e333fb99474167ba`, loan **liquid VVV** `0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf`, oracle `0x9E982637f26aAaAd0bfDBe3c6c1846120C4E5A62`, IRM `0x46415998764C29aB2a25CbeA6254146D50D22687`. Verified on-chain 2026-07-13 (all zero — genuinely unseeded, not just stale docs). ⚠ **A DEAD market with the same LLTV/IRM exists at ID `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8`, oracle `0xC76e2fe5176B432035Def5362023a8DF36bEE94E`** — collateralized by the superseded v5 vault, ~$0 TVL, permanently inert (Morpho markets are immutable, can't be deleted). Full detail: `docs/vault/mainnet-addresses.md`.
 
 **Old vault (v4, 2026-06-01) — withdrawals enabled June 17 UTC (MOG-520):**
 

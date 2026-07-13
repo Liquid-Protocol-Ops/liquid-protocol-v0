@@ -18,6 +18,14 @@ interface IMorpho {
 }
 
 // ---------------------------------------------------------------------------
+// ⚠ SUPERSEDED — DO NOT RE-RUN. This script's WSTDIEM constant below points at the
+// v5 vault, which was superseded by v6 (0xe49FA849cB37b0e7A42B2335e333fb99474167ba)
+// and drained to dust. Running this again would either revert (market already
+// exists) or, if any param below has drifted, silently create a SECOND dead
+// market. The correct, live-but-unseeded wstDIEM/VVV v6 market already exists —
+// see docs/vault/mainnet-addresses.md for its real market id/oracle. Retained
+// only for provenance/compile (2026-07-13).
+// ---------------------------------------------------------------------------
 // DeployVvvMarket.s.sol  (MOG-544)
 //
 // Deploys the fully on-chain WstDiemVvvOracle and creates the VVV-denominated

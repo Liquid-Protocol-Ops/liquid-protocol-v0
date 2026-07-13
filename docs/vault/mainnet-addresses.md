@@ -59,21 +59,32 @@ Redeployed with the MOG-541 `routeYield(minDiemOut)` slippage floor and register
 | SurplusAdapter | `0xB67A86Ab50e30d7509eeD205Fc01A70758B227Db` | [view](https://basescan.org/address/0xb67a86ab50e30d7509eed205fc01a70758b227db) |
 | X402Adapter | `0xC3C3CaC663f88304a38Cb9C4e9c02bB57DB00142` | [view](https://basescan.org/address/0xc3c3cac663f88304a38cb9c4e9c02bb57db00142) |
 
-## Morpho Markets (v5)
+## Morpho Markets — v6 (LIVE, collateral = the live vault)
 
-| Market | Oracle | LLTV | Basescan |
-|--------|--------|------|---------|
-| wstDIEM/DIEM (leverage loop) | `0xB1B192fc0190bA15F4EC76BF6032123bc688F76D` | 86% | [view](https://basescan.org/address/0xb1b192fc0190ba15f4ec76bf6032123bc688f76d) |
-| wstDIEM/USDC | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` | 62.5% — DEPRECATED (MOG-542, do not use) | [view](https://basescan.org/address/0x7f3eab9863d4f5a1d34d89f7b802c0ea2469b51a) |
-| wstDIEM/WETH | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` | 62.5% — DEPRECATED (MOG-542, do not use) | [view](https://basescan.org/address/0x73fddccbb524b04b43eded9c4d20c061de291f07) |
-| wstDIEM/DIEM (77% LLTV) | `0xE762e8011D453853638D1978398df8b1D383A2D9` | 77% | — |
-| wstDIEM/VVV (on-chain TWAP, MOG-544) | `0xC76e2fe5176B432035Def5362023a8DF36bEE94E` | 62.5% | [view](https://basescan.org/address/0xc76e2fe5176b432035def5362023a8df36bee94e) |
+Verified on-chain 2026-07-13 via `Morpho.idToMarketParams`/`Morpho.market` directly (not scripts/docs — those had drifted, see "Dead v5 markets" below).
 
-> **wstDIEM/USDC and wstDIEM/WETH markets are DEPRECATED** (MOG-542/549): their oracles price wstDIEM collateral with a hardcoded DIEM=$1, which is wrong (DIEM ≈ $1,450). They are unseeded and must not be supplied to or borrowed from. The wstDIEM/VVV market (fully on-chain oracle) is the canonical lending venue.
+| Market | ID | Oracle | LLTV | State |
+|--------|----|--------|------|-------|
+| wstDIEM/DIEM | `0xdd6b9f10bf69445ebba0626ef54042af628cdf65dda98ff68df4d235d4d56c76` | `WstDiemDiemOracle` `0xAF29776f93FE0bf21282bF792A52AC212f20F45c` (pure `vault.convertToAssets()` — redemption rate, no AMM) | 86% | **LIVE**: ~6.0 DIEM supplied, ~2.5 DIEM borrowed |
+| wstDIEM/VVV | `0x9262c400a82397a3191bb139f824c04c692647d60a45b1c2183a91ffce7ca615` | `WstDiemVvvOracle` `0x9E982637f26aAaAd0bfDBe3c6c1846120C4E5A62` (`vault.convertToAssets() × Aerodrome DIEM/VVV TWAP`, granularity 24 ≈ 12h, 2h staleness guard) | 62.5% | Created, **unseeded** — 0 supply, 0 borrow (MOG-536 gate) |
+
+Both oracles are immutable — no owner, no upgrade path. Changing either requires deploying a new oracle and creating a new Morpho market (see `src/vault/oracles/WstDiemVvvOracle.sol` header comment for the full manipulation-resistance rationale). IRM (both markets): `0x46415998764C29aB2a25CbeA6254146D50D22687`.
+
+## Dead v5 markets — DO NOT USE (collateral is the superseded v5 vault, ~$0 TVL)
+
+These were created against `InferenceVault v5` (`0xb9f23c33FfD2213f31C0cFb6c9e2fDf525a9Dd2D`), which was superseded by the v6 vault above and drained to dust. The markets themselves are immutable and can't be deleted — they just sit permanently inert on Morpho. Confirmed on-chain 2026-07-13: all four show zero (or near-zero) supply/borrow.
+
+| Market | Oracle | LLTV | Basescan | Why dead |
+|--------|--------|------|---------|---------|
+| wstDIEM/DIEM (leverage loop) | `0xB1B192fc0190bA15F4EC76BF6032123bc688F76D` | 86% | [view](https://basescan.org/address/0xb1b192fc0190ba15f4ec76bf6032123bc688f76d) | v5 vault |
+| wstDIEM/USDC | `0x7F3eAb9863d4f5a1d34d89f7b802C0eA2469b51a` | 62.5% | [view](https://basescan.org/address/0x7f3eab9863d4f5a1d34d89f7b802c0ea2469b51a) | v5 vault + hardcoded DIEM=$1 (MOG-542/549) |
+| wstDIEM/WETH | `0x73FddCCBB524b04b43EdED9C4d20C061DE291F07` | 62.5% | [view](https://basescan.org/address/0x73fddccbb524b04b43eded9c4d20c061de291f07) | v5 vault + hardcoded DIEM=$1 (MOG-542/549) |
+| wstDIEM/DIEM (77% LLTV) | `0xE762e8011D453853638D1978398df8b1D383A2D9` | 77% | — | v5 vault |
+| wstDIEM/VVV (v5, market id `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8`) | `0xC76e2fe5176B432035Def5362023a8DF36bEE94E` | 62.5% | [view](https://basescan.org/address/0xc76e2fe5176b432035def5362023a8df36bee94e) | v5 vault — **do not confuse with the live v6 wstDIEM/VVV market above**, same LLTV/IRM, different collateral+oracle |
+
+> **wstDIEM/USDC and wstDIEM/WETH markets are DEPRECATED** (MOG-542/549): their oracles price wstDIEM collateral with a hardcoded DIEM=$1, which is wrong (DIEM ≈ $1,450). As of MOG-544 the replacement design for a high-LLTV market is the v6 wstDIEM/VVV market above, not a USD-denominated one.
 >
 > **MOG-549 sweep result:** "$1" appears in two roles. As an *inference entitlement* ($1/DIEM/day — `AgentTGERegistry` tier allocations, `InferenceProduct` capacity) it is CORRECT (Venice's real mechanic; sale price is a separate owner param `pricePerDiemDayUSDC=0.8e6`). As a *collateral market price* it is WRONG — but only the two oracles above + the V4 pool init (MOG-548) used it that way. `FeeRouter`/adapters/`Router` convert at market (`amountOutMinimum:0`), carrying no $1 assumption.
-
-**wstDIEM/VVV market** (created 2026-06-05, deployer v6): ID `0xab0345699b8e7a86763b6adbf165c6cd367d11d8e6d875c0f1a20861d8f4f8c8` — collateral wstDIEM, loan **liquid VVV** `0xacfE6019…`, oracle `0xC76e2fe5…`, IRM `0x46415998…`. Oracle is fully on-chain (`vault rate × Aerodrome DIEM→VVV TWAP`, granularity 2 ≈ ~1h); immutable. **Unseeded — do NOT supply borrowable VVV / open borrows until the liquidation path (wstDIEM→DIEM via Curve→VVV via Aerodrome) has depth (MOG-536); size caps to the ~$6M Aerodrome v2 pool.**
 
 ## Liquidity Pools (v5)
 
