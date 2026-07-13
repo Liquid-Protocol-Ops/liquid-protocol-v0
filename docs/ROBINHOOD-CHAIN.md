@@ -232,6 +232,14 @@ which ran the **ELT→WETH conversion swap through the forked router to completi
 then stored + claimed WETH with the ELT-side balance fully converted. The
 `addDepositor` gap in §5 was discovered by this validation.
 
+> ⚠️ **ELT launched at a high market cap (~230 WETH ≈ $0.8M).** `LaunchEthPair.s.sol`
+> reused SPYING's start tick `-198720`, but that tick was calibrated for a paired
+> unit worth ~$600 (tokenized SPY); WETH (~$3.5k) is ~6× more valuable, so the same
+> tick yields ~6× the MC. This was harmless for a throwaway validation, but **real
+> WETH-paired launches must recompute the start tick for the target MC**:
+> `tick = ln(MC_target / (supply × ETH_usd)) / ln(1.0001)`, snapped to the tick
+> spacing (60). Don't copy `-198720` for an ETH-paired launch.
+
 ---
 
 ## 7. SDK usage
