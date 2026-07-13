@@ -249,10 +249,20 @@ const wallet = createWalletClient({ chain, transport: http() });
 ```
 
 `getChainConfig(chainId)` returns `{ chain, addresses, external }` for `8453`
-(Base) or `4663` (Robinhood). The `LiquidSDK` client class still defaults to Base;
-building a chain-parametrized client is a tracked follow-up. Any SDK code that
-constructs a v4 router swap client-side (e.g. a dev-buy) must encode the extra
-`minHopPriceX36` field on 4663 (see §4).
+(Base) or `4663` (Robinhood). `LiquidSDK` is **chain-parametrized**: pass
+`chainId` in `LiquidSDKConfig` (defaults to `8453`, so Base callers are
+unchanged) and it resolves the chain + address sets for you:
+
+```ts
+const sdk = new LiquidSDK({ publicClient, walletClient, chainId: 4663 });
+// deployToken/collectRewards/etc. now target Robinhood Chain automatically
+```
+
+The SDK does not build any Uniswap v4 router swap client-side (the dev-buy just
+ABI-encodes the extension's own config for the on-chain extension to execute), so
+the forked-router `minHopPriceX36` concern (§4) does not apply at the SDK layer —
+on 4663 the SDK simply resolves to the fork-fixed locker and the 4663 dev-buy
+extension address.
 
 ---
 

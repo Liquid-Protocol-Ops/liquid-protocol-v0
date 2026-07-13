@@ -43,9 +43,13 @@ Deployed 2026-07-12 from branch `feat/robinhood-4663-deploy`. Full launchpad
   runs it's 24,571.
 - Allowlists configured (Phase 4): both hooks, the LP locker (per hook), the 4
   extensions, and both MEV modules enabled on the factory.
-- **Not yet verified on Blockscout** — deployed without `--verify` for RPC
-  reliability. Verify with `forge verify-contract <addr> <Name> --verifier
-  blockscout --verifier-url https://robinhoodchain.blockscout.com/api/ --chain-id 4663`.
+- **Blockscout verification** — the fixed LP locker `0x4AB3…` is **verified**
+  (verify the `lplocker`-profile build with `FOUNDRY_PROFILE=lplocker
+  forge verify-contract <addr> <Name> --compiler-version 0.8.28 --chain-id 4663
+  --verifier blockscout --verifier-url https://robinhoodchain.blockscout.com/api/
+  --constructor-args <abi-encoded>`; Blockscout can 503/queue transiently — retry).
+  The remaining core/hook/extension contracts can be verified the same way (default
+  profile) when convenient — indexing lag can require a couple retries.
 - Uniswap V4 infra used: PoolManager `0x8366a39C…`, PositionManager `0x58da…`,
   Universal Router `0x8876…`, Permit2 `0x0000…78BA3`, WETH `0x0Bd7…`.
 
