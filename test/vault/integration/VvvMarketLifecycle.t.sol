@@ -247,6 +247,14 @@ contract VvvMarketLifecycleTest is Test {
         console.log("maxBorrow VVV   :", maxBorrow / 1e18);
 
         // 4. Liquidate: seize half the collateral, repaying VVV debt.
+        // The v6 oracle enforces a 2h staleness bound (MOG-548 hardening) — the real
+        // Aerodrome pool's last observation is still wherever it was pre-fork, now 120
+        // real-days stale relative to the warped block.timestamp, so price() would
+        // correctly revert StaleObservation() here. That's the oracle working as designed,
+        // not a bug — refresh the observation the same way real trading activity would,
+        // via a trivial swap, before exercising the liquidation path.
+        _refreshAeroObservation();
+
         address liquidator = makeAddr("liquidator");
         deal(VVV, liquidator, debt);
         uint256 vvvStart = IERC20(VVV).balanceOf(liquidator);
@@ -296,5 +304,19 @@ contract VvvMarketLifecycleTest is Test {
         );
         require(ok, "aero quote failed");
         return abi.decode(ret, (uint256));
+    }
+
+    // Push a fresh Aerodrome observation at the current (possibly warped) block.timestamp via
+    // a trivial swap — mirrors what real trading activity does, so a test that vm.warps forward
+    // can still pass the oracle's staleness guard without weakening the guard itself.
+    function _refreshAeroObservation() internal {
+        address poker = makeAddr("aeroPoker");
+        uint256 tinyIn = 1e15; // 0.001 DIEM — negligible relative to ~$6M+ pool depth
+        deal(DIEM, poker, tinyIn);
+        uint256 tinyOut = IAeroSwap(AERO_POOL).getAmountOut(tinyIn, DIEM);
+        vm.startPrank(poker);
+        IERC20(DIEM).transfer(AERO_POOL, tinyIn);
+        IAeroSwap(AERO_POOL).swap(tinyOut, 0, poker, ""); // token0 = VVV out, mirrors the unwind swap below
+        vm.stopPrank();
     }
 }
