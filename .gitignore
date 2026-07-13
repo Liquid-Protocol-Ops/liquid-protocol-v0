@@ -21,3 +21,6 @@ docs/src/
 .claude/
 .agents/
 skills-lock.json
+
+# Robinhood Chain 4663 deploy env (has op-read secret command)
+.env.robinhood

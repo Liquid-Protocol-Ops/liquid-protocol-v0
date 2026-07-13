@@ -15,8 +15,10 @@ optimizer_runs = 20_000
 base = { key = "${ETHERSCAN_API_KEY_1}", url = "https://api.etherscan.io/v2/api?chainid=8453", chain = 8453 }
 base_sepolia = { key = "${ETHERSCAN_API_KEY_1}", url = "https://api.etherscan.io/v2/api?chainid=84532", chain = 84532 }
 
+# Robinhood-4663 build of LiquidLpLockerFeeConversion: the 6-field-swap-struct fix
+# adds bytecode, so runs lowered 100->10 to stay under EIP-170 (24,561 < 24,576).
 [profile.lplocker]
-optimizer_runs = 100
+optimizer_runs = 10
 
 [fmt]
 line_length = 100

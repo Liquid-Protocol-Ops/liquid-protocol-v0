@@ -53,6 +53,18 @@ contract LiquidLpLockerFeeConversion is ILiquidLpLockerFeeConversion, Reentrancy
     mapping(address token => TokenRewardInfo tokenRewardInfo) internal _tokenRewards;
     mapping(address token => FeeIn[] feePreference) public feePreferences;
 
+    // Robinhood Chain (4663) runs a forked Universal Router whose IV4Router swap-param
+    // structs carry an extra `minHopPriceX36` field before `hookData` (per-hop min-price
+    // protection). Mirror that layout so the router decodes our swap correctly there.
+    struct RhExactInputSingleParams {
+        PoolKey poolKey;
+        bool zeroForOne;
+        uint128 amountIn;
+        uint128 amountOutMinimum;
+        uint256 minHopPriceX36;
+        bytes hookData;
+    }
+
     constructor(
         address owner_,
         address factory_, // Address of the liquid factory
@@ -628,13 +640,20 @@ contract LiquidLpLockerFeeConversion is ILiquidLpLockerFeeConversion, Reentrancy
         );
         bytes[] memory params = new bytes[](3);
 
-        // First parameter: SWAP_EXACT_IN_SINGLE
+        // First parameter: SWAP_EXACT_IN_SINGLE.
+        // NOTE: ROBINHOOD-CHAIN-4663 BUILD ONLY. This chain's forked Universal Router uses
+        // a 6-field IV4Router.ExactInputSingleParams (extra `minHopPriceX36` before
+        // `hookData`). We encode that layout with minHopPriceX36=0 (disables the per-hop
+        // price check). On a standard v4 chain (e.g. Base) this encoding would revert — do
+        // NOT deploy this build there; use the canonical 5-field IV4Router struct instead.
+        // (Kept a single path rather than a chainid branch to stay under the EIP-170 limit.)
         params[0] = abi.encode(
-            IV4Router.ExactInputSingleParams({
+            RhExactInputSingleParams({
                 poolKey: poolKey,
                 zeroForOne: tokenIn < tokenOut, // swapping tokenIn -> tokenOut
                 amountIn: amountIn, // amount of tokenIn to swap
                 amountOutMinimum: 0, // minimum amount we expect to receive
+                minHopPriceX36: 0, // disable Robinhood router's per-hop price check
                 hookData: bytes("") // no hook data needed, assuming we're using simple hooks
             })
         );
