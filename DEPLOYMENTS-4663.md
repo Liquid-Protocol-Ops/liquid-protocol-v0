@@ -88,3 +88,55 @@ Claim flow (per launched token): `collectRewards(token)` on the LP locker
 **⚠ Redeploying a locker requires `addDepositor` on the FeeLocker too** — this is easy to miss. The v2 locker also had to be authorized: `addDepositor(0x4AB3…)` on FeeLocker `0xbd81…` (tx `0x8c54e62d…`). Without it, the hook's per-swap auto-collect (`collectRewardsWithoutUnlock` → `storeFees`) reverts `Unauthorized`, which **bricks sells** on tokens launched against that locker once the MEV window closes (buys still work; the revert only fires when there are accrued fees to store). Order of ops for any new locker: deploy → `setLocker` per hook → **`addDepositor` on FeeLocker** → launch.
 
 **Validated end-to-end 2026-07-13** with a throwaway launch `ethlockertest`/`ELT` `0x06f25d40108E31e7F7787412180216c87bCfF7f0` paired vs WETH, Paired pref, new locker. Bought (WETH→ELT), sold (ELT→WETH, accrues token-side fee), then `collectRewards(ELT)` (tx `0x53155b7d…`): the ELT→WETH conversion swap through the forked UR **executed fully** (real `Swap` event, ~140k gas — vs the old locker's empty revert at 2,076 gas), stored + claimed WETH (tx `0x47283aa7…`); ELT claimable ended at 0 (all converted). Scripts: `script/LaunchEthPair.s.sol`, `script/MineEthPairSalt.s.sol`, `script/RhSwapExactIn.s.sol`. |
+
+## FUCKSTOCKS launch — first launch via the TS ladder engine (2026-07-20)
+
+First production launch driven by the **TypeScript ladder engine** in
+`liquid-sdk` (branch `feat/ladder-engine`, PR #94) instead of a forge script:
+`buildLadder` → `mineTokenSalt` → `deployToken`, all via viem. Multi-position
+Clanker-style liquidity ladder (7 positions), not a single wide position.
+
+| Field | Value |
+|---|---|
+| Token | **`fuckstocks` / FUCKSTOCKS** `0x0A8528a6BDC4d30E5538e3205b1AD84D76838030` |
+| Pair | WETH `0x0Bd7…` — FUCKSTOCKS = **currency0** (salt `0x07` mined with `admin=Safe` so it sorts below WETH) |
+| Owner | Safe **`0xF0E1D993E7ec19a1E83e6288bBE531A2C5ce4131`** = tokenAdmin + rewardAdmins + rewardRecipients |
+| Fees | `FeeIn.Paired` → all fees collected in **WETH** |
+| Dynamic fee | **volatility-responsive**: baseFee 1% (10000), maxLpFee 5% (50000), **feeControlNumerator 400,000,000** ("aggressive" — ~5% by ±10% moves). Hook `0xDee7…`. First 4663 launch with a non-zero `feeControlNumerator` (all prior launches were flat). |
+| MEV | descending 50% → 1% over 120s (`0xd864…`) |
+| Locker | fixed 6-field `0x4AB39080B54121136fEfFf86857641F40dA6b964` |
+| Ladder | `buildLadder({profile:"bell", positions:7, startMcUsd:40_000, topMcUsd:3_125_000_000, aggressiveness:0.8, pairedTokenUsd:1865})`. Deep **60.3% of supply at $5–25M MC** (band #4), shallow low, thin tail. start tick **-222660**, tickSpacing 60. |
+| positionBps | `[118, 259, 1608, 6030, 1608, 259, 118]` (sum 10000) |
+| tickLower | `[-222660, -206580, -190440, -174360, -158280, -142200, -126060]` |
+| tickUpper | `[-206580, -190440, -174360, -158280, -142200, -126060, 887220]` (last = tail to max) |
+| Deploy tx | `0x6e1110aed727c1f49ed86dc73295ba1dbdecf7fa4bc8b293ebbc51809a8b391a` (block 14721462, 4.98M gas, status 1) |
+
+Validated post-deploy: pool slot0 tick = -222660 (matches intent), deployer
+token balance = 0 (all supply laddered), tokenAdmin = Safe on-chain. Safety:
+dry-run + on-chain `simulateContract` + `deploy-safety-reviewer` GO before
+broadcast; chain-id re-asserted 4663; key read inline via
+`op read 'op://mog.capital/Liquid 4663 deployer/credential'` (never on disk).
+
+**First fees claimed (2026-07-20, same day as launch):** a sniper bought
+FUCKSTOCKS during the descending-MEV window and paid **~0.4995 WETH** in LP fees.
+The hook auto-collected most of it to the FeeLocker escrow for the Safe;
+`collectRewards(FUCKSTOCKS)` (tx `0x8ea69a2503b2abf2137d552054611f360c566b5f1b4e563c67793c00645c056e`)
+swept the ~0.00013 WETH residual, then `claim(Safe, WETH)` (tx
+`0x4e6555d68f321cf6f732fb1e49868fd7aa520778ff8ad23e4feac0a0cd871ee2`) sent
+0.4995 WETH to the Safe (Safe WETH balance 0.0505 → 0.5500). Because
+`feePreference = Paired`, fees escrow under **WETH**, not the token —
+`claim(feeOwner, WETH)`, and both `collectRewards`/`claim` are permissionless
+(funds always route to the stored `feeOwner`), so the deployer can trigger them
+without a Safe tx.
+
+**Two engine bugs surfaced by this launch (fix in PR #94):**
+1. `launchWithLadder` hardcodes `admin = deployer` in **both** the salt mining
+   and `tokenAdmin`, so it cannot hand ownership to a Safe (the mined address
+   wouldn't match the deployed one). Needs a `tokenAdmin` param threaded into
+   `mineTokenSalt` + `deployParams`. Worked around here by calling the lower-level
+   pieces directly.
+2. `deployToken`'s default `poolData: "0x"` **empty-reverts** on the dynamic-fee
+   hook — the hook requires the `PoolInitializationData{extension, extensionData,
+   feeData}` wrapper. The README/code comment claiming `"0x" ⇒ hook applies its
+   built-in default` is wrong. Default should be
+   `buildDynamicFeePoolData(DEFAULT_DYNAMIC_FEE_VARS)`.
