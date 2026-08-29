@@ -7,13 +7,19 @@ import {Test} from "forge-std/Test.sol";
 contract MockSpy {
     string public constant name = "SPY";
     uint8 public constant decimals = 18;
+    bool public blocked;
     mapping(address => uint256) public balanceOf;
 
     function mint(address to, uint256 amt) external {
         balanceOf[to] += amt;
     }
 
+    function setBlocked(bool b) external {
+        blocked = b;
+    }
+
     function transfer(address to, uint256 amt) external returns (bool) {
+        require(!blocked, "SPY: blocked");
         balanceOf[msg.sender] -= amt;
         balanceOf[to] += amt;
         return true;
@@ -109,14 +115,42 @@ contract TopTraderRewardPoolTest is Test {
         pool.migrate();
     }
 
-    function test_migrate_latchesAndSweepsPotToTreasury() public {
+    function test_migrate_latchesAndRecordsPot_settlePaysTreasury() public {
         spy.mint(address(pool), 500);
         sv.setTick(MIGRATION_TICK); // exactly at threshold: succeeds (>=)
         pool.migrate();
         assertTrue(pool.migrated());
+        assertEq(pool.treasuryPot(), 500);
+        assertEq(spy.balanceOf(treasury), 0); // latch never transfers
+        pool.settleTreasury();
+        assertEq(spy.balanceOf(treasury), 500);
+        assertEq(pool.treasuryPot(), 0);
+        pool.settleTreasury(); // no-op once settled
         assertEq(spy.balanceOf(treasury), 500);
         vm.expectRevert(TopTraderRewardPool.AlreadyMigrated.selector);
         pool.migrate();
+    }
+
+    function test_migrate_latchSurvivesBlockedTransfer() public {
+        spy.mint(address(pool), 500);
+        sv.setTick(MIGRATION_TICK);
+        spy.setBlocked(true);
+        pool.migrate(); // latch engages even though transfers revert
+        assertTrue(pool.migrated());
+        vm.expectRevert(bytes("SPY: blocked"));
+        pool.settleTreasury();
+        spy.setBlocked(false);
+        pool.settleTreasury(); // retryable
+        assertEq(spy.balanceOf(treasury), 500);
+    }
+
+    function test_constructor_rejectsZeroAddresses() public {
+        vm.expectRevert(TopTraderRewardPool.ZeroAddress.selector);
+        new TopTraderRewardPool(address(0), creator, treasury, keeper, MIGRATION_TICK, address(sv));
+        vm.expectRevert(TopTraderRewardPool.ZeroAddress.selector);
+        new TopTraderRewardPool(
+            address(spy), creator, address(0), keeper, MIGRATION_TICK, address(sv)
+        );
     }
 
     function test_award_blockedAfterMigration() public {
@@ -129,15 +163,18 @@ contract TopTraderRewardPoolTest is Test {
     }
 
     // ── sweep ──
-    function test_sweep_onlyAfterMigration_forwardsToCreator() public {
+    function test_sweep_onlyAfterMigration_excludesUnsettledPot() public {
         spy.mint(address(pool), 250);
         vm.expectRevert(TopTraderRewardPool.NotMigrated.selector);
         pool.sweep(address(spy));
         sv.setTick(MIGRATION_TICK);
-        pool.migrate(); // sweeps the 250 to treasury
+        pool.migrate(); // records 250 owed to treasury, transfers nothing
         spy.mint(address(pool), 77); // post-migration fee arrival
-        pool.sweep(address(spy));
+        pool.sweep(address(spy)); // creator gets only the non-reserved 77
         assertEq(spy.balanceOf(creator), 77);
+        assertEq(spy.balanceOf(address(pool)), 250);
+        pool.settleTreasury();
+        assertEq(spy.balanceOf(treasury), 250);
     }
 
     // ── admin ──

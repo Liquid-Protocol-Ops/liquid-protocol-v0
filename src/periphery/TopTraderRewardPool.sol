@@ -52,9 +52,11 @@ contract TopTraderRewardPool {
     error PoolAlreadySet();
     error PoolNotSet();
     error BelowMigrationTick();
+    error ZeroAddress();
 
     event MonthAwarded(address[3] winners, uint256 pot, uint256[3] amounts);
-    event Migrated(int24 tickAtMigration, uint256 potSweptToTreasury);
+    event Migrated(int24 tickAtMigration, uint256 potOwedTreasury);
+    event TreasurySettled(uint256 amount, uint256 remaining);
     event Swept(address indexed token, uint256 amount);
     event KeeperChanged(address indexed keeper);
     event PoolSet(bytes32 indexed poolId);
@@ -72,6 +74,9 @@ contract TopTraderRewardPool {
     bytes32 public poolId;
     bool public migrated;
     uint256 public lastAwardAt;
+    /// @notice SPY owed to the treasury after migration (settled separately
+    ///         from the latch so a reverting transfer can never brick it).
+    uint256 public treasuryPot;
 
     constructor(
         address spy_,
@@ -81,6 +86,10 @@ contract TopTraderRewardPool {
         int24 migrationTick_,
         address stateView_
     ) {
+        if (
+            spy_ == address(0) || creator_ == address(0) || treasury_ == address(0)
+                || keeper_ == address(0) || stateView_ == address(0)
+        ) revert ZeroAddress();
         spy = IERC20(spy_);
         creator = creator_;
         treasury = treasury_;
@@ -132,7 +141,10 @@ contract TopTraderRewardPool {
         emit MonthAwarded(winners, pot, [first, second, third]);
     }
 
-    /// @notice Permissionless one-way latch at the $2M-MC tick (spot).
+    /// @notice Permissionless one-way latch at the $2M-MC tick (spot). The
+    ///         latch NEVER transfers — the stub pot is recorded as owed to the
+    ///         treasury and settled via settleTreasury(), so a reverting SPY
+    ///         transfer cannot brick migration.
     function migrate() external {
         if (migrated) revert AlreadyMigrated();
         if (poolId == bytes32(0)) revert PoolNotSet();
@@ -140,15 +152,33 @@ contract TopTraderRewardPool {
         if (tick < migrationTick) revert BelowMigrationTick();
 
         migrated = true;
-        uint256 pot = spy.balanceOf(address(this));
-        if (pot > 0) spy.safeTransfer(treasury, pot);
-        emit Migrated(tick, pot);
+        treasuryPot = spy.balanceOf(address(this));
+        emit Migrated(tick, treasuryPot);
+    }
+
+    /// @notice Settle the recorded migration pot to the treasury. Anyone may
+    ///         call; retryable until fully settled.
+    function settleTreasury() external {
+        if (!migrated) revert NotMigrated();
+        uint256 owed = treasuryPot;
+        if (owed == 0) return;
+        uint256 bal = spy.balanceOf(address(this));
+        uint256 amt = owed <= bal ? owed : bal;
+        treasuryPot = owed - amt;
+        if (amt > 0) spy.safeTransfer(treasury, amt);
+        emit TreasurySettled(amt, treasuryPot);
     }
 
     /// @notice Post-migration passthrough: forward any token to the creator.
+    ///         SPY sweeps exclude the unsettled treasury pot — that portion
+    ///         belongs to the treasury, not the creator.
     function sweep(address token) external {
         if (!migrated) revert NotMigrated();
         uint256 bal = IERC20(token).balanceOf(address(this));
+        if (token == address(spy)) {
+            uint256 reserved = treasuryPot <= bal ? treasuryPot : bal;
+            bal -= reserved;
+        }
         IERC20(token).safeTransfer(creator, bal);
         emit Swept(token, bal);
     }
