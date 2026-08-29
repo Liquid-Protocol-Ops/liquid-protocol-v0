@@ -37,6 +37,16 @@ contract LaunchRobinhoodTemplate is Script {
         require(block.chainid == 4663, "wrong chain");
         require(IERC20Metadata(spy).decimals() == 18, "SPY decimals != 18 - TickCalc assumes 18");
 
+        // H3: bound the two operator-supplied USD×1e8 inputs before they feed
+        // TickCalc. An untypoed 1e8 scale (e.g. "650" instead of "650e8") shifts
+        // every rung by ~184,206 ticks with no undo once the ladder is live.
+        uint256 spyUsdE8 = vm.envUint("SPY_USD_E8");
+        uint256 startMcUsdE8 = vm.envOr("START_MC_USD_E8", uint256(25_000e8));
+        require(spyUsdE8 >= 50e8 && spyUsdE8 <= 5000e8, "SPY_USD_E8 out of range - is it x1e8?");
+        require(
+            startMcUsdE8 >= 1000e8 && startMcUsdE8 <= 10_000_000e8, "START_MC_USD_E8 out of range"
+        );
+
         RobinhoodConfig.Params memory p = RobinhoodConfig.Params({
             name: vm.envString("TOKEN_NAME"),
             symbol: vm.envString("TOKEN_SYMBOL"),
@@ -46,9 +56,9 @@ contract LaunchRobinhoodTemplate is Script {
             pairedToken: spy,
             locker: vm.envAddress("LOCKER_V2"),
             mevModule: vm.envAddress("LIQUID_MEV_DESCENDING_FEES"),
-            rewardRecipient: address(0), // filled after pool deploy below
-            startMcUsdE8: vm.envOr("START_MC_USD_E8", uint256(25_000e8)),
-            spyUsdE8: vm.envUint("SPY_USD_E8"),
+            rewardRecipient: address(0), // filled after the reward-pool deploy below
+            startMcUsdE8: startMcUsdE8,
+            spyUsdE8: spyUsdE8,
             chainId: block.chainid
         });
 
@@ -69,7 +79,10 @@ contract LaunchRobinhoodTemplate is Script {
 
         // 2. deploy token + pool + ladder through the factory
         address factory = vm.envAddress("LIQUID_FACTORY");
-        if (Liquid(factory).deprecated()) Liquid(factory).setDeprecated(false);
+        require(
+            !Liquid(factory).deprecated(),
+            "factory deprecated - Safe must setDeprecated(false) first"
+        );
         address token = Liquid(factory).deployToken(config);
         require(token < spy, "salt not mined: token is currency1");
 
@@ -89,5 +102,8 @@ contract LaunchRobinhoodTemplate is Script {
         console.log("rewardPool:", address(rewardPool));
         console.log("migrationTick:", migrationTick);
         console.log("startTick:", config.poolConfig.tickIfToken0IsLiquid);
+        console.log(
+            "reminder: before each awardMonth, poke LiquidFeeLocker.claim(rewardPool, SPY) at 0xbd81f5d3a761929e3e93d5d3ab6ab83960b7de62 to pull escrowed fees into the pool"
+        );
     }
 }

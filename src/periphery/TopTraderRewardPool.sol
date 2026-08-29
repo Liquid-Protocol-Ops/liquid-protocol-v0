@@ -23,6 +23,21 @@ interface IStateViewMin {
 /// Trust notes (v1, per spec §4): winner selection is off-chain keeper trust;
 /// the spot-tick trigger is deliberate (owner decision) and a single-block wick
 /// can latch migration early.
+///
+/// Fee-claim runbook: LP fees do not arrive here automatically. The hook
+/// auto-collects them into the LiquidFeeLocker escrow per swap
+/// (`collectRewardsWithoutUnlock` → `storeFees(pool, SPY, amount)`), but
+/// nothing pushes them from that escrow into this contract's own balance.
+/// Anyone may permissionlessly call `LiquidFeeLocker.claim(address(pool), SPY)`
+/// to move the escrowed SPY into the pot — the keeper does this before every
+/// `awardMonth` (an empty pot reverts `EmptyPot`). `collectRewards(token)` on
+/// the LP locker is only needed as a manual fallback if the hook's per-swap
+/// auto-collection was skipped (e.g. inside the MEV-module window).
+///
+/// currency0 precondition: `migrate()`'s spot-tick comparison assumes the
+/// launched token is `currency0` and SPY is `currency1` in the bound
+/// `poolId` — guaranteed by the mined launch salt (`token < SPY`), not
+/// re-checked here.
 contract TopTraderRewardPool {
     using SafeERC20 for IERC20;
 

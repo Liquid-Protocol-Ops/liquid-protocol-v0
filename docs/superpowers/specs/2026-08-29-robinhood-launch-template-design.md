@@ -98,6 +98,11 @@ via 4663 RPC/Blockscout → compute per-address monthly rPNL → publish artifac
 → call `awardMonth`. Uses the RH keeper wallet; TIER-2 signing keys stay out
 of automation per credential-tier policy.
 
+Fee-claim note: fees auto-collect into the FeeLocker per swap; anyone may
+call `LiquidFeeLocker.claim(rewardPool, SPY)` to move them from that escrow
+into the reward pool — the keeper does this before every `awardMonth`
+(an empty pot reverts `EmptyPot`).
+
 ## 6. Deliverables & phasing
 
 1. **P1 — contract + template:** `src/extensions/TopTraderRewardPool.sol` (or
