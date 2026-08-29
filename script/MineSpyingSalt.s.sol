@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
 import {LiquidToken} from "../src/LiquidToken.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 /// @notice Mine a tokenConfig.salt so the CREATE2-deployed token sorts BELOW SPY
 ///         (=> the launched token is currency0 => displays as SPYING/SPY).

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
 import {Liquid} from "../src/Liquid.sol";
-import {ILiquid} from "../src/interfaces/ILiquid.sol";
-import {ILiquidLpLockerFeeConversion} from "../src/lp-lockers/interfaces/ILiquidLpLockerFeeConversion.sol";
 import {ILiquidHookDynamicFee} from "../src/hooks/interfaces/ILiquidHookDynamicFee.sol";
 import {ILiquidHookV2} from "../src/hooks/interfaces/ILiquidHookV2.sol";
+import {ILiquid} from "../src/interfaces/ILiquid.sol";
+import {
+    ILiquidLpLockerFeeConversion
+} from "../src/lp-lockers/interfaces/ILiquidLpLockerFeeConversion.sol";
 import {ILiquidMevDescendingFees} from "../src/mev-modules/interfaces/ILiquidMevDescendingFees.sol";
+import {Script, console} from "forge-std/Script.sol";
 
 /// @notice Launch "newchaintest" (SPYING) through the deployed Liquid factory,
 ///         paired against tokenized SPY, dynamic-fee hook. Mirrors the SDK's
@@ -46,7 +48,8 @@ contract LaunchSpying is Script {
 
         // Fee preference per reward recipient: Paired => all fees converted to the
         // paired token (SPY). "SPY fees only", never WETH.
-        ILiquidLpLockerFeeConversion.FeeIn[] memory prefs = new ILiquidLpLockerFeeConversion.FeeIn[](1);
+        ILiquidLpLockerFeeConversion.FeeIn[] memory prefs =
+            new ILiquidLpLockerFeeConversion.FeeIn[](1);
         prefs[0] = ILiquidLpLockerFeeConversion.FeeIn.Paired;
         bytes memory feeData =
             abi.encode(ILiquidLpLockerFeeConversion.LpFeeConversionInfo({feePreference: prefs}));
@@ -61,17 +64,21 @@ contract LaunchSpying is Script {
                 resetPeriod: 86_400,
                 resetTickFilter: 500,
                 feeControlNumerator: 0,
-                decayFilterBps: 9_000
+                decayFilterBps: 9000
             })
         );
         // poolData is the wrapper the hook decodes: {extension, extensionData, feeData}.
         bytes memory poolData = abi.encode(
-            ILiquidHookV2.PoolInitializationData({extension: address(0), extensionData: "", feeData: feeVars})
+            ILiquidHookV2.PoolInitializationData({
+                extension: address(0), extensionData: "", feeData: feeVars
+            })
         );
 
         // MEV descending-fee schedule: 50% -> 1% over 2 min (max), anti-sniper.
         bytes memory mevData = abi.encode(
-            ILiquidMevDescendingFees.FeeConfig({startingFee: 500_000, endingFee: 10_000, secondsToDecay: 120})
+            ILiquidMevDescendingFees.FeeConfig({
+                startingFee: 500_000, endingFee: 10_000, secondsToDecay: 120
+            })
         );
 
         ILiquid.DeploymentConfig memory config = ILiquid.DeploymentConfig({
@@ -102,7 +109,9 @@ contract LaunchSpying is Script {
                 positionBps: positionBps,
                 lockerData: feeData
             }),
-            mevModuleConfig: ILiquid.MevModuleConfig({mevModule: mevModule, mevModuleData: mevData}),
+            mevModuleConfig: ILiquid.MevModuleConfig({
+                mevModule: mevModule, mevModuleData: mevData
+            }),
             extensionConfigs: new ILiquid.ExtensionConfig[](0)
         });
 

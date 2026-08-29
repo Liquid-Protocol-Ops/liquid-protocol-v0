@@ -1,6 +1,6 @@
 # Robinhood Launch Template — breakout ladder + top-trader reward pool
 
-**Date:** 2026-08-29 · **Chain:** Robinhood Chain (4663) · **Status:** design approved in-session (Gordon), pending spec review
+**Date:** 2026-08-29 · **Chain:** Robinhood Chain (4663) · **Status:** P1 implemented (contract + template + tests) — see docs/superpowers/plans/2026-08-29-robinhood-launch-template-p1.md
 
 A default deployment template for Liquid-factory launches on Robinhood Chain:
 SPY-paired, dynamic-fee (2%→5%), a 7-position "breakout ladder" tuned for
