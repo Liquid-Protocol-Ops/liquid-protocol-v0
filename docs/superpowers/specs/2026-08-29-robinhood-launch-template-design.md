@@ -22,10 +22,10 @@ fees unchanged throughout).
 
 ## 2. Position ladder ("breakout ladder")
 
-Total supply 1e9 ×1e18 (AIPLAY/SPYING convention), 100% into LP, single-sided
+Total supply 100_000_000_000e18 (100B — hardcoded by the factory, `Liquid.sol:44` TOKEN_SUPPLY; corrected 2026-08-29 from the earlier 1e9 assumption), 100% into LP, single-sided
 token, 7 positions (per cap), tick spacing 60, ticks snapped down.
 
-Tick math at deploy time: `tick(MC_usd) = ln(MC_usd / (1e9 × SPY_usd_live)) / ln(1.0001)`,
+Tick math at deploy time: `tick(MC_usd) = ln(MC_usd / (1e11 × SPY_usd_live)) / ln(1.0001)` (1e11 = 100B tokens),
 SPY/USD fetched live at deploy (from the SPY-quoted pools or an off-chain
 price with operator confirmation). Start MC default **$25k** (parameter).
 
