@@ -33,7 +33,7 @@ library TickCalc {
 
     function snapDown(int24 tick, int24 spacing) internal pure returns (int24) {
         int24 snapped = (tick / spacing) * spacing;
-        if (tick % spacing != 0) snapped -= spacing;
+        if (tick < 0 && tick % spacing != 0) snapped -= spacing;
         return snapped;
     }
 }

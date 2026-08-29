@@ -34,7 +34,9 @@ contract TickCalcTest is Test {
     function test_snapDown_negativeAndPositive() public pure {
         assertEq(TickCalc.snapDown(-172_976, 60), -172_980);
         assertEq(TickCalc.snapDown(-172_980, 60), -172_980);
-        assertEq(TickCalc.snapDown(121, 60), 60);
+        assertEq(TickCalc.snapDown(121, 60), 120);
+        assertEq(TickCalc.snapDown(59, 60), 0);
+        assertEq(TickCalc.snapDown(200, 60), 180);
         assertEq(TickCalc.snapDown(0, 60), 0);
     }
 
