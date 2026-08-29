@@ -23,6 +23,17 @@ interface IStateViewFork {
 }
 
 contract RobinhoodTemplate4663Test is Test {
+    // matches ILiquidLpLockerFeeConversion.FeesSwapped exactly (name, types,
+    // indexed positions) so vm.expectEmit can match it by topic0 without an
+    // extra interface import.
+    event FeesSwapped(
+        address indexed token,
+        address indexed rewardToken,
+        uint256 amountSwapped,
+        address indexed swappedToken,
+        uint256 amountOut
+    );
+
     address constant FACTORY = 0x65c40274A1a2178A5140F80fcd6Fe7eFB954e6C2;
     address constant HOOK = 0xDee7DcDCf599306D3c29e8dd0E6F4C9c4b6F68Cc;
     address constant MEV = 0xd86416EEdb067213dF7336662b3fa3B3a1a5E205;
@@ -156,6 +167,10 @@ contract RobinhoodTemplate4663Test is Test {
             ILiquidLpLocker(LOCKER_V2).tokenRewards(token);
         assertEq(rewardInfo.rewardRecipients[0], address(pool), "locker not wired to reward pool");
 
+        // no vm.warp has happened yet, so this is still the pool's real
+        // init timestamp — anchor for the MEV-window math below.
+        uint256 poolCreatedAt = block.timestamp;
+
         // fund a trader with SPY: deal() first; SPY is a beacon proxy, so if
         // stdStorage can't find the balance slot fall back to pulling real
         // SPY out of the PoolManager (the singleton V4 balance sheet that
@@ -165,27 +180,54 @@ contract RobinhoodTemplate4663Test is Test {
         _fundSpy(trader, spyFund);
         assertEq(IERC20Metadata(SPY).balanceOf(trader), spyFund, "trader SPY funding failed");
 
-        PoolSwapTest swapRouter =
-            new PoolSwapTest(IPoolManager(0x8366a39CC670B4001A1121B8F6A443A643e40951));
+        PoolSwapTest swapRouter = new PoolSwapTest(IPoolManager(POOL_MANAGER));
         vm.prank(trader);
         IERC20Metadata(SPY).approve(address(swapRouter), type(uint256).max);
 
-        // the MEV module operates for MAX_MEV_MODULE_DELAY (2 min) after pool
-        // init and _collectRewards silently no-ops (no revert, no event)
-        // while it's active — warp past it BEFORE swapping, or fee collection
-        // below passes vacuously.
-        vm.warp(block.timestamp + 121);
+        // H1.3: exercise the Paired-conversion swap through RH's forked
+        // Universal Router (6-field minHopPriceX36 encoding) — the exact
+        // path DEPLOYMENTS-4663.md:88 documents as having bricked sells on
+        // this chain once, and per the review never validated against a SPY
+        // pair (only WETH/ELT). That path (_uniSwapLocked) is reached only
+        // by a *manual* collectRewards call on a backlog of uncollected
+        // fees — the hook's per-swap auto-collect (collectRewardsWithoutUnlock
+        // -> _uniSwapUnlocked) settles directly against the PoolManager and
+        // never touches the router. So: trade while the MEV module is still
+        // active (auto-collect silently no-ops per H1's own warning, leaving
+        // fees uncollected in the position), THEN warp past the window and
+        // let the first *manual* collectRewards sweep the backlog through
+        // the router.
+        vm.warp(poolCreatedAt + 30); // inside the 120s MEV window, past the
+        // module's "SameSecondAsDeployment" guard
 
-        // small SPY->token swap (buying token with SPY, the same direction
-        // that pushes price up through the ladder): generates the first
-        // round of LP fees. The hook auto-collects them into the FeeLocker
-        // escrow per swap (collectRewardsWithoutUnlock -> storeFees).
+        // small SPY->token buy: accrues an SPY-side fee (uncollected — MEV
+        // module still active). Also gives the trader token to sell next.
         _swapSpyForToken(swapRouter, key, trader, 10e18);
 
-        // collectRewards(token) is a manual fallback (idempotent - no-ops if
-        // the hook's auto-collect already ran); claim moves the FeeLocker
-        // escrow into the pool's own balance. Assert it strictly increases.
+        // sell a portion of those tokens back for SPY: accrues a token-side
+        // fee (also uncollected) — the branch that needs the router
+        // conversion swap once collected.
+        uint256 traderTokenBal = IERC20Metadata(token).balanceOf(trader);
+        assertGt(traderTokenBal, 0, "buy swap produced no token to sell");
+        vm.prank(trader);
+        IERC20Metadata(token).approve(address(swapRouter), type(uint256).max);
+        _sellTokenForSpy(swapRouter, key, trader, traderTokenBal / 2);
+
+        // MAX_MEV_MODULE_DELAY (2 min) after pool init, _collectRewards
+        // stops silently no-op'ing (no revert, no event) — warp past it
+        // before collecting, or collection below passes vacuously.
+        vm.warp(poolCreatedAt + 121);
+
+        // manual collectRewards(token) now has a real backlog: the
+        // token-side fee converts via _uniSwapLocked (the forked Universal
+        // Router). FeesSwapped only fires on that branch (the SPY-side
+        // "distribute" branch never emits it), so asserting it is a
+        // non-vacuous signal the router swap actually executed rather than
+        // silently no-op'ing or reverting. claim() then moves the FeeLocker
+        // escrow into the pool's own balance.
         uint256 poolSpyBefore = IERC20Metadata(SPY).balanceOf(address(pool));
+        vm.expectEmit(true, true, true, false, LOCKER_V2);
+        emit FeesSwapped(token, token, 0, SPY, 0);
         ILiquidLpLocker(LOCKER_V2).collectRewards(token);
         ILiquidFeeLocker(FEE_LOCKER).claim(address(pool), SPY);
         uint256 poolSpyAfterFirstClaim = IERC20Metadata(SPY).balanceOf(address(pool));
@@ -287,6 +329,28 @@ contract RobinhoodTemplate4663Test is Test {
                 zeroForOne: false,
                 amountSpecified: -int256(spyIn),
                 sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
+            }),
+            PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
+            ""
+        );
+    }
+
+    /// Exact-input token -> SPY swap (zeroForOne=true: currency0/token in,
+    /// currency1/SPY out). Fees from this direction accrue in the launched
+    /// token, forcing the locker's Paired-preference conversion swap.
+    function _sellTokenForSpy(
+        PoolSwapTest router,
+        PoolKey memory key_,
+        address trader,
+        uint256 tokenIn
+    ) internal {
+        vm.prank(trader);
+        router.swap(
+            key_,
+            IPoolManager.SwapParams({
+                zeroForOne: true,
+                amountSpecified: -int256(tokenIn),
+                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
             }),
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
