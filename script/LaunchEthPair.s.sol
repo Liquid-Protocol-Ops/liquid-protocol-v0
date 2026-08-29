@@ -84,6 +84,7 @@ contract LaunchEthPair is Script {
             }),
             poolConfig: ILiquid.PoolConfig({
                 hook: hook,
+                pairedToken: paired,
                 // ⚠ Reused from the SPYING/SPY config. SPY≈$600 vs WETH≈$3.5k, so this
                 // tick gives a HIGH starting MC (~230 WETH ≈ $0.8M) when paired vs WETH —
                 // the ELT validation launched high because of this. For a real WETH launch,
