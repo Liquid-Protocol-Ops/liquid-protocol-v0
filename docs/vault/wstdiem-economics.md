@@ -1,6 +1,6 @@
 # wstDIEM — Fee Structure & Economics
 
-**Last updated:** 2026-06-03
+**Last updated:** 2026-10-22 (fees checked on-chain)
 **Vault:** `0xe49FA849cB37b0e7A42B2335e333fb99474167ba` (InferenceVault v6)
 **Chain:** Base mainnet
 
@@ -8,7 +8,7 @@
 
 ## Summary
 
-wstDIEM is a rebasing-rate token. You hold a fixed share count; each share redeems for more DIEM over time as yield accrues through three channels: inference revenue (Venice API), Liquid Protocol fee income, and (optionally) Morpho borrowing interest. There is no performance fee and no withdrawal fee — one entry fee only.
+wstDIEM is a rebasing-rate token. You hold a fixed share count; each share redeems for more DIEM over time as yield accrues through three channels: inference revenue (Venice API), Liquid Protocol fee income, and (optionally) Morpho borrowing interest. Fees: a **0.05% deposit fee** and a **5% fee on credited yield**, both minted to the treasury as wstDIEM. No withdrawal fee and no management fee. Live values: `currentDepositFeeBps()` and `yieldFeeBps()` on the vault.
 
 ---
 
@@ -26,15 +26,19 @@ DIEM has **no USD-liquid DEX market**. Its only deep liquidity is **DIEM/VVV on 
 
 ## Fee Layer 1: Deposit Fee
 
-Charged once at deposit. Tiered by vault TVL:
+Charged once at deposit. Flat, set by the Safe with `setDepositFeeBps` (hard cap 10%):
 
 | Fee | Rate | Recipient |
 |-----|------|-----------|
-| Deposit fee | **2.5% (250 bps)**, flat | Treasury (Safe), as wstDIEM shares |
+| Deposit fee | **0.05% (5 bps)**, flat, since 2026-10-22. 2.5% (250 bps) from launch until then | Treasury `0x2AfE303f4AbD285631872c5A971e5D32fBF1E087`, as wstDIEM shares |
 
 The fee is taken from depositor assets before shares are calculated and minted to the treasury as wstDIEM — the protocol compounds its cut rather than extracting USDC. It does not dilute the exchange rate for existing holders.
 
-No withdrawal fee. No performance fee. No management fee.
+No withdrawal fee. No management fee.
+
+## Fee Layer 1b: Yield Fee
+
+`creditDIEM(amount)` mints `yieldFeeBps` (**5%, 500 bps**; hard cap 20%, `setYieldFeeBps`) of each credit to the treasury as wstDIEM, priced before the credit lands, so holders keep 95% of every credit.
 
 ---
 
@@ -44,16 +48,16 @@ When AntSeed, Surplus, or X402 settle USDC inference revenue, `routeYield()` spl
 
 ```
 100% USDC revenue
-  ├── 90% → swap USDC→WETH→DIEM → vault.creditDIEM()
-  │         raises wstDIEM exchange rate for ALL holders equally
-  └── 10% → swap USDC→WETH→DIEM → vault.creditWstDIEM(adapter)
+  ├── 95% → swap USDC→WETH→DIEM → vault.creditDIEM()
+  │         raises wstDIEM exchange rate for ALL holders equally (less the 5% yield fee)
+  └──  5% → swap USDC→WETH→DIEM → vault.creditWstDIEM(adapter)
             mints wstDIEM to the adapter at current rate
             adapter is owned by Safe — this is the protocol's inference revenue cut
 ```
 
-Default split: 90/10. Operator fee is configurable by Safe up to 20% max.
+Split: 95/5 since 2026-07-16 (MOG-593; 90/10 before). Operator fee is configurable by the Safe up to 20% max.
 
-The 10% adapter cut compounds over time as wstDIEM (not extracted as USDC), so the protocol participates in its own yield growth.
+The 5% adapter cut compounds over time as wstDIEM (not extracted as USDC), so the protocol participates in its own yield growth.
 
 ---
 
@@ -92,15 +96,16 @@ You hold: 1,000 wstDIEM
           redeemable for, say, 1,050 DIEM today
 
 Sources that increase the redemption rate:
-  Venice inference USDC (via adapters)   → 90% to rate
-  Liquid Protocol WETH (via FeeRouter)   → 100% to rate
+  Venice inference USDC (via adapters)   → ~90% to rate (95% credited, less the 5% yield fee)
+  Liquid Protocol WETH (via FeeRouter)   → 95% to rate (less the 5% yield fee)
   Morpho borrowing interest              → only if you also supply DIEM to Morpho
 
 Sources that go to Safe treasury:
-  Deposit fee (0.1% or 0.5%)
-  Adapter operator cut (10% of inference USDC, held as wstDIEM)
+  Deposit fee (0.05%)
+  Yield fee (5% of each creditDIEM, as wstDIEM)
+  Adapter operator cut (5% of inference USDC, held as wstDIEM)
 
-Nothing is extracted from your position once you deposit.
+No fee is taken from your shares after you deposit; the yield fee only reduces how fast the rate rises.
 ```
 
 ---

@@ -143,7 +143,7 @@ The directory holds ~20 scripts beyond these four. Owner-only actions follow the
 3. `cast send <OLD_VAULT> 'completeUnstake()'` (permissionless, any funded EOA) after the cooldown → moves cooled DIEM into the vault's idle balance, unblocking `maxRedeem`.
 4. `SafeRedeemV4.s.sol` — `redeem(shares, Safe, Safe)` (owner) → DIEM to the Safe.
 
-To redeploy recovered DIEM into the live v6 vault: `SafeDepositV6.s.sol` (`approve` + `deposit(amount, Safe)`, 2.5% entry fee).
+To redeploy recovered DIEM into the live v6 vault: `SafeDepositV6.s.sol` (`approve` + `deposit(amount, Safe)`; deposit fee 0.05% since 2026-10-22, 2.5% before).
 
 See `docs/vault/KEEPER_RUNBOOK.md` for the authoritative ops procedure.
 

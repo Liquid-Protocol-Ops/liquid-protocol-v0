@@ -23,7 +23,7 @@ InferenceVault(vault).deposit(amount, receiver);
 InferenceVault(vault).mint(shares, receiver);
 ```
 
-Fee: 2.5% (250 bps), flat. Taken from depositor assets, minted to treasury as wstDIEM shares.
+Fee: 0.05% (5 bps), flat, since 2026-10-22 (2.5% from launch until then). Taken from depositor assets, minted to the treasury as wstDIEM shares. Read `currentDepositFeeBps()` on the vault for the live value.
 
 ### Path B — WETH deposit (via Router)
 
