@@ -24,7 +24,7 @@
 
 | Contract | Code | Deployed by | Live address (v6) | Role |
 |----------|------|-------------|-------------------|------|
-| **BaseInferenceAdapter** | [`BaseInferenceAdapter.sol`](../../src/vault/adapters/BaseInferenceAdapter.sol) | — (abstract) | — | Shared `receiveSettlement` + `routeYield(minDiemOut)` logic (USDC→WETH→DIEM, 90/10 split) |
+| **BaseInferenceAdapter** | [`BaseInferenceAdapter.sol`](../../src/vault/adapters/BaseInferenceAdapter.sol) | — (abstract) | — | Shared `receiveSettlement` + `routeYield(minDiemOut)` logic (USDC→WETH→DIEM; holder/operator split by `operatorFeeBps`: 0% operator since 2026-10-22, 5% from 2026-07-16, 10% at launch) |
 | **AntSeedAdapter** | [`AntSeedAdapter.sol`](../../src/vault/adapters/AntSeedAdapter.sol) | [`DeployV6Adapters.s.sol`](../../script/vault/DeployV6Adapters.s.sol) | `0xed98A5f4F3AcFd0752A81FDd03DD28b7A44A18b7` | AntSeed venue settlement |
 | **SurplusAdapter** | [`SurplusAdapter.sol`](../../src/vault/adapters/SurplusAdapter.sol) | [`DeployV6Adapters.s.sol`](../../script/vault/DeployV6Adapters.s.sol) | `0x91b3E39Ef6335D97876AdB4448A998c7cbD3885F` | Surplus Intelligence venue settlement |
 | **X402Adapter** | [`X402Adapter.sol`](../../src/vault/adapters/X402Adapter.sol) | [`DeployV6Adapters.s.sol`](../../script/vault/DeployV6Adapters.s.sol) | _not deployed for v6 (v5 only)_ | X402 micropayment settlement |

@@ -30,7 +30,7 @@ Charged once at deposit. Flat, set by the Safe with `setDepositFeeBps` (hard cap
 
 | Fee | Rate | Recipient |
 |-----|------|-----------|
-| Deposit fee | **0.05% (5 bps)**, flat, since 2026-10-22. 2.5% (250 bps) from launch until then | Treasury `0x2AfE303f4AbD285631872c5A971e5D32fBF1E087`, as wstDIEM shares |
+| Deposit fee | **0.05% (5 bps)**, flat, since 2026-10-22. 0.25% (25 bps) from 2026-07-16; 2.5% (250 bps) at launch | Treasury `0x2AfE303f4AbD285631872c5A971e5D32fBF1E087`, as wstDIEM shares |
 
 The fee is taken from depositor assets before shares are calculated and minted to the treasury as wstDIEM — the protocol compounds its cut rather than extracting USDC. It does not dilute the exchange rate for existing holders.
 
@@ -55,7 +55,7 @@ When AntSeed, Surplus, or X402 settle USDC inference revenue, `routeYield()` spl
             adapter is owned by Safe — this is the protocol's inference revenue cut
 ```
 
-Split: 95/5 since 2026-07-16 (MOG-593; 90/10 before). Operator fee is configurable by the Safe up to 20% max.
+Operator fee: **0% since 2026-10-22 20:39 UTC** (Safe nonce 130), so the whole swap output is credited to the vault; 5% from 2026-07-16 (MOG-593); 10% at launch. Configurable by the Safe up to 20% max.
 
 The 5% adapter cut compounds over time as wstDIEM (not extracted as USDC), so the protocol participates in its own yield growth.
 
@@ -96,7 +96,7 @@ You hold: 1,000 wstDIEM
           redeemable for, say, 1,050 DIEM today
 
 Sources that increase the redemption rate:
-  Venice inference USDC (via adapters)   → ~90% to rate (95% credited, less the 5% yield fee)
+  Venice inference USDC (via adapters)   → ~95% to rate (100% credited, less the 5% yield fee; ~90% before 2026-10-22)
   Liquid Protocol WETH (via FeeRouter)   → 95% to rate (less the 5% yield fee)
   Morpho borrowing interest              → only if you also supply DIEM to Morpho
 
