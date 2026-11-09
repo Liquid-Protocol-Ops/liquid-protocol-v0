@@ -25,14 +25,8 @@ Full paths required (not on default PATH):
 | Tool | Path |
 |------|------|
 | `forge`, `cast`, `anvil` | `~/.foundry/bin/` |
-| `op` (1Password CLI) | `/opt/homebrew/bin/op` |
 
-Secrets:
-- **Deployer v6** (reserved for the pending adapter security-fix redeploy, MOG-541 — the v6 vault itself is already LIVE, deployed 2026-06-10): `0xf04822e5B0E76A34aeeA936c79B4439f794b8Be1` — `op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credential --reveal` (vault: `Personal`, item: "wstDIEM v6 Deployer EOA"). Fund from wstdiem-deployer Splits account `0xf4DB2a7B6902924EFCd8270d23B205969EfF3316`.
-- **Deployer v5** (legacy, v5 contracts only): `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` — `op item get el4qwixmdot757dpxcqgfo43qe --field "private key" --reveal` (vault: `mog.capital`)
-- **Deployer v4** (legacy, do not reuse): `op item get dlvppn2nk3mkz2ewgcu3yhqbj4 --field private_key --reveal`
-- **Keeper EOA**: `0x988CE72d127b8A06821BBb3708897dBdc0D66f2f` — `cat ~/.splits/config.json | python3 -c "import sys,json; print(json.load(sys.stdin)['key']['privateKey'])"`. Fund from wstdiem-keeper Splits account `0x102368E997ced4b94d093813B3c1F5fB1F15f4B1`.
-- **Etherscan key**: `op item get ggwsiftg2sspnxai22vkbj2yea --field credential --reveal`
+**Keys and operations.** This repo is public. It holds no keys and no key-management detail. Operational runbooks and key management (where keys live, signers, funding, keeper and Safe procedures) live in the private ops repo. Scripts read keys only from env vars: `DEPLOYER_PK`, `EXECUTOR_PK`, `SAFE_SK1`/`SAFE_SK2` (bytes32), `KEEPER_PK`, plus `ETHERSCAN_API_KEY_1` for verification. Inject them at runtime from your secret manager; never commit them, paste them into docs, or add retrieval commands, vault/item names or local key-file paths to this repo. Public operator addresses (deployers, keeper, Safe) are in `docs/vault/mainnet-addresses.md`.
 
 ## Stack
 
@@ -132,28 +126,20 @@ All vault scripts live in `script/vault/`:
 
 - `DeployAll.s.sol` — deploys the full vault stack (InferenceVault, FeeRouter, Router, Curve pool, Morpho market, AgentTGERegistry, SurplusStakingWrapper). Requires `DEPLOYER_ADDRESS`, `TREASURY_ADDRESS`, `SAFE_MULTISIG_ADDRESS` env vars.
 - `DeployRouter.s.sol` — standalone Router redeploy (used frequently as Router is upgraded without re-deploying the vault).
-- `SafeBatch.s.sol` — executes Safe multisig transactions programmatically. Reads `SAFE_SK1` and `SAFE_SK2` (bytes32 private keys) + `EXECUTOR_PK` from env. Signatures sorted by signer address ascending (Safe spec). Safe signers in 1Password: `liq-safe-signer-1` (vault `mog.capital`), `liq-safe-signer-2` (vault `Personal`).
+- `SafeBatch.s.sol` — executes Safe multisig transactions programmatically. Reads `SAFE_SK1` and `SAFE_SK2` (bytes32 private keys) + `EXECUTOR_PK` from env. Signatures sorted by signer address ascending (Safe spec).
 - `InitPools.s.sol` — initializes V4 pool and seeds Curve pool with available balances.
 
 The directory holds ~20 scripts beyond these four. Owner-only actions follow the `Safe*.s.sol` naming and all use the `SafeBatch` signing pattern above (`SAFE_SK1`/`SAFE_SK2`/`EXECUTOR_PK`): e.g. `SafeEnableWithdrawals`, `SafeAddV4LP`, `SafeManageV4LP`, `SafeSeedCapital`, `SafeKeeperSetup`. Deploy variants include `DeployAndWireAdapters`, `DeployCurvePool`, `DeployMorphoMarketsV2`, `CreateMorphoMarket75`.
 
-**Old v4 vault withdrawal/recovery sequence (MOG-520) — COMPLETED 2026-07-10; recovered 2.746136 DIEM to the Safe.** The Safe holds the v4 wstDIEM, so owner-only steps route through the Safe. ⚠ The **deployed** v4 vault (`0x4751BA2b09374C1929FC01734a166e3c8cd75810`) is a standard **ERC-4626** — its `maxRedeem`/`maxWithdraw` are gated by `withdrawalsEnabled` AND the vault's idle (unstaked) DIEM balance. It has **NO** `requestWithdraw`/`flushBatch`/`settleBatch`/`claimBatch` batch flow (that interface reverts GS013 on the live bytecode; verified against Etherscan source). Correct recovery flow:
-1. `SafeEnableWithdrawals.s.sol` — `enableWithdrawals()` on the old vault (owner).
-2. `SafeInitiateUnstakeV4.s.sol` — `initiateUnstake(stakedAmount)` (owner) → starts Venice's ~24h unstake cooldown.
-3. `cast send <OLD_VAULT> 'completeUnstake()'` (permissionless, any funded EOA) after the cooldown → moves cooled DIEM into the vault's idle balance, unblocking `maxRedeem`.
-4. `SafeRedeemV4.s.sol` — `redeem(shares, Safe, Safe)` (owner) → DIEM to the Safe.
+**Old v4 vault (MOG-520) — recovery completed 2026-07-10.** ⚠ The **deployed** v4 vault (`0x4751BA2b09374C1929FC01734a166e3c8cd75810`) is a standard **ERC-4626** — its `maxRedeem`/`maxWithdraw` are gated by `withdrawalsEnabled` AND the vault's idle (unstaked) DIEM balance. It has **NO** `requestWithdraw`/`flushBatch`/`settleBatch`/`claimBatch` batch flow (that interface reverts GS013 on the live bytecode; verified against Etherscan source). The real flow is `enableWithdrawals` → `initiateUnstake` → ~24h Venice cooldown → `completeUnstake` (permissionless) → `redeem`.
 
-To redeploy recovered DIEM into the live v6 vault: `SafeDepositV6.s.sol` (`approve` + `deposit(amount, Safe)`; deposit fee 0.05% since 2026-10-22; 0.25% from 2026-07-16; 2.5% at launch).
-
-See `docs/vault/KEEPER_RUNBOOK.md` for the authoritative ops procedure.
-
-Typical deploy pattern (v5, using new deployer):
+Typical deploy pattern (key injected from your secret manager at runtime):
 ```bash
-DEPLOYER_PK=$(op item get el4qwixmdot757dpxcqgfo43qe --field "private key" --reveal | tr -d '[:space:]')
-DEPLOYER_PK="$PK" forge script script/vault/DeployRouter.s.sol \
-  --rpc-url https://base-mainnet.g.alchemy.com/v2/<key> \
-  --private-key "$PK" --broadcast --verify \
-  --etherscan-api-key "$ETHERSCAN_KEY"
+# DEPLOYER_PK and ETHERSCAN_API_KEY_1 injected into the environment by your secret manager
+forge script script/vault/DeployRouter.s.sol \
+  --rpc-url "$BASE_RPC_URL" \
+  --private-key "$DEPLOYER_PK" --broadcast --verify \
+  --etherscan-api-key "$ETHERSCAN_API_KEY_1"
 ```
 
 ## Test Structure
@@ -169,10 +155,12 @@ Fork tests require `BASE_RPC_URL` env var. They use the live DIEM and VVV stakin
 
 Vault docs live in `docs/vault/` and are kept more current than this file:
 
-- `mainnet-addresses.md` — **canonical** deployed addresses (all versions, Morpho markets, Splits accounts).
-- `KEEPER_RUNBOOK.md` — routine keeper ops and the v4 withdrawal procedure.
-- `SYSTEM_OVERVIEW.md` — architecture narrative; `wstdiem-economics.md` — rate/yield mechanics; `GROWTH_PLAN.md` — TVL/growth strategy; `DEPOSIT_GUIDE.md` — user deposit paths.
+- `mainnet-addresses.md` — **canonical** deployed addresses (all versions, Morpho markets, operator addresses).
+- `KEEPER_RUNBOOK.md` — public vault-maintenance reference: the permissionless withdrawal-queue calls, read-only monitoring, pause semantics.
+- `SYSTEM_OVERVIEW.md` — architecture narrative; `wstdiem-economics.md` — rate/yield mechanics and fee schedule; `DEPOSIT_GUIDE.md` — user deposit paths; `V6_LAUNCH.md` — v6 launch summary.
 - `SECURITY_REVIEW.md` — latest vault security review (see below).
+
+Operational runbooks (keeper, Safe operations, deploys, seeding, growth plans) are not kept in this public repo; they live in the private ops repo.
 
 For the **Liquid Protocol** side, `README.md` lists all deployed core/hook/extension/MEV addresses and `EXTENSION-ALLOWLIST.md` covers the extension approval process.
 

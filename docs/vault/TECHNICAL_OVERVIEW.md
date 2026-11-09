@@ -67,4 +67,4 @@
 
 ## More docs
 
-[`mainnet-addresses.md`](./mainnet-addresses.md) (canonical addresses) · [`SYSTEM_OVERVIEW.md`](./SYSTEM_OVERVIEW.md) · [`wstdiem-economics.md`](./wstdiem-economics.md) · [`DEPOSIT_GUIDE.md`](./DEPOSIT_GUIDE.md) · [`KEEPER_RUNBOOK.md`](./KEEPER_RUNBOOK.md) · [`SECURITY_REVIEW.md`](./SECURITY_REVIEW.md) · [`V6_DEPLOY_RUNBOOK.md`](./V6_DEPLOY_RUNBOOK.md)
+[`mainnet-addresses.md`](./mainnet-addresses.md) (canonical addresses) · [`SYSTEM_OVERVIEW.md`](./SYSTEM_OVERVIEW.md) · [`wstdiem-economics.md`](./wstdiem-economics.md) · [`DEPOSIT_GUIDE.md`](./DEPOSIT_GUIDE.md) · [`KEEPER_RUNBOOK.md`](./KEEPER_RUNBOOK.md) · [`SECURITY_REVIEW.md`](./SECURITY_REVIEW.md) · [`V6_LAUNCH.md`](./V6_LAUNCH.md)

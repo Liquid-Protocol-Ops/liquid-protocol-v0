@@ -25,7 +25,7 @@ Clean redeploy via `DeployV6.s.sol`: hardened VVV oracle (granularity 24 + 2h st
 | InferenceProduct | `0xE43c4B1930531360c3924F72e9395e9c5bC4a5F3` | [view](https://basescan.org/address/0xe43c4b1930531360c3924f72e9395e9c5bc4a5f3) |
 | Treasury (fees, Splits) | `0x2AfE303f4AbD285631872c5A971e5D32fBF1E087` | — |
 
-**v6 Morpho markets** (created, unseeded): wstDIEM/VVV 62.5% (oracle `0x9E98…`) + wstDIEM/DIEM 86% (oracle `0xAF29…`), IRM `0x46415998…`. **V4 pool:** WETH/wstDIEM, DYNAMIC_FEE_FLAG, tickSpacing 60, hook `0xf010…5080`, init tick 3017. Deploy: `docs/vault/V6_DEPLOY_RUNBOOK.md`; deployer `0x428Fac…` (single-use). Post-deploy TODO: Basescan verify, rotate veniceSigner, seed liquidity, cross-repo propagation.
+**v6 Morpho markets** (created, unseeded): wstDIEM/VVV 62.5% (oracle `0x9E98…`) + wstDIEM/DIEM 86% (oracle `0xAF29…`), IRM `0x46415998…`. **V4 pool:** WETH/wstDIEM, DYNAMIC_FEE_FLAG, tickSpacing 60, hook `0xf010…5080`, init tick 3017. Deploy script: [`script/vault/DeployV6.s.sol`](../../script/vault/DeployV6.s.sol) (launch summary: [`V6_LAUNCH.md`](./V6_LAUNCH.md)); deployer `0x428Fac…` (single-use). Post-deploy TODO: Basescan verify, rotate veniceSigner, seed liquidity, cross-repo propagation.
 
 ## Venue Adapters (v6 — LIVE 2026-06-12) ✅
 
@@ -84,7 +84,7 @@ These were created against `InferenceVault v5` (`0xb9f23c33FfD2213f31C0cFb6c9e2f
 
 > **wstDIEM/USDC and wstDIEM/WETH markets are DEPRECATED** (MOG-542/549): their oracles price wstDIEM collateral with a hardcoded DIEM=$1, which is wrong (DIEM ≈ $1,450). As of MOG-544 the replacement design for a high-LLTV market is the v6 wstDIEM/VVV market above, not a USD-denominated one.
 >
-> **MOG-549 sweep result:** "$1" appears in two roles. As an *inference entitlement* ($1/DIEM/day — `AgentTGERegistry` tier allocations, `InferenceProduct` capacity) it is CORRECT (Venice's real mechanic; sale price is a separate owner param `pricePerDiemDayUSDC=0.8e6`). As a *collateral market price* it is WRONG — but only the two oracles above + the V4 pool init (MOG-548) used it that way. `FeeRouter`/adapters/`Router` convert at market (`amountOutMinimum:0`), carrying no $1 assumption.
+> **MOG-549 sweep result:** "$1" appears in two roles. As an *inference entitlement* ($1/DIEM/day — `AgentTGERegistry` tier allocations, `InferenceProduct` capacity) it is CORRECT (Venice's real mechanic; the sale price is a separate owner-set param, `pricePerDiemDayUSDC`). As a *collateral market price* it is WRONG — but only the two oracles above + the V4 pool init (MOG-548) used it that way. `FeeRouter`/adapters/`Router` convert at market (`amountOutMinimum:0`), carrying no $1 assumption.
 
 ## Liquidity Pools (v5)
 
@@ -108,20 +108,15 @@ These were created against `InferenceVault v5` (`0xb9f23c33FfD2213f31C0cFb6c9e2f
 
 ## Deployer & Governance
 
-| Role | Address | 1Password |
+| Role | Address | Notes |
 |------|---------|---------|
-| Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | SK1: `liq-safe-signer-1` (mog.capital), SK2: `liq-safe-signer-2` (Personal) |
-| Deployer v6 | `0xf04822e5B0E76A34aeeA936c79B4439f794b8Be1` | `op://Personal/wstDIEM v6 Deployer EOA/credential` (item `rhuh6s2tocpjzdi7kvvnjrps7i`) |
-| Deployer v5 (legacy) | `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` | `el4qwixmdot757dpxcqgfo43qe` (mog.capital) |
-| Keeper EOA | `0x988CE72d127b8A06821BBb3708897dBdc0D66f2f` | `~/.splits/config.json` key.privateKey |
-| veniceSigner | `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` | Same as deployer v5 — rotate to Privy wallet before production |
+| Safe (owner) | `0x872c561f699B42977c093F0eD8b4C9a431280c6c` | 2-of-3 multisig; owns every vault contract |
+| Deployer v6 | `0xf04822e5B0E76A34aeeA936c79B4439f794b8Be1` | Holds no ownership (transferred to the Safe) |
+| Deployer v5 (legacy) | `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` | Legacy, v5 contracts only |
+| Keeper EOA | `0x988CE72d127b8A06821BBb3708897dBdc0D66f2f` | Adapter operator + authorized settler; runs the permissionless queue calls |
+| veniceSigner | `0x10900528c57BBCe07C223B25Ae9bB66966274b5D` | Same as deployer v5; rotation to a dedicated signer is pending |
 
-## Splits Funding Accounts (Base mainnet)
-
-| Account | Address | Purpose |
-|---------|---------|---------|
-| wstdiem-deployer | `0xf4DB2a7B6902924EFCd8270d23B205969EfF3316` | Deployment gas budget — proposes ETH to deployer v6 EOA |
-| wstdiem-keeper | `0x102368E997ced4b94d093813B3c1F5fB1F15f4B1` | Keeper gas budget — funds `0x988C…6f2f` |
+Key management and operator funding are internal and live in the private ops repo.
 
 ## Old Vault (v4 — withdrawals pending June 18)
 

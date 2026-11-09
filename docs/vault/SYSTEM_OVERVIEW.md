@@ -136,7 +136,7 @@ Net effect: caller holds leveraged wstDIEM position (up to 4.35x at 77% LLTV)
 
 ## Venice ERC-1271 Integration
 
-The vault implements `isValidSignature()`. Venice binds an API key to the vault's staked DIEM by verifying the vault's signature on a challenge. The vault checks that the signer is `veniceSigner` — a hot key separate from the Safe owner. Currently set to deployer; rotate to a Privy server wallet before production key registration.
+The vault implements `isValidSignature()`. Venice binds an API key to the vault's staked DIEM by verifying the vault's signature on a challenge. The vault checks that the signer is `veniceSigner` — a hot key separate from the Safe owner. Currently set to the deployer; rotation to a dedicated signer is pending.
 
 ---
 
