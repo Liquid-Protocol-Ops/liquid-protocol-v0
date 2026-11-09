@@ -221,7 +221,7 @@ Add `@custom:deprecated` to `WstDiemUsdcOracle` and `WstDiemWethOracle`:
 - MOG-549: close with the audit-sweep result below. **The sweep distinguishes two roles of "$1" and only the second is a bug:**
   - **(A) Inference-entitlement accounting — `$1/DIEM/day` is CORRECT** (Venice's real perpetuity mechanic, not a market price):
     - `AgentTGERegistry` — `tierAllocations = [500e6, 2000e6, 5000e6]` USD/day entitlements; no DIEM↔USD market conversion. Legitimate.
-    - `InferenceProduct` — `diemAmount` capacity = DIEM-days; sale price is owner-set `pricePerDiemDayUSDC = 0.8e6` ($0.80, deliberately ≠ $1). No collateral-price assumption.
+    - `InferenceProduct` — `diemAmount` capacity = DIEM-days; the sale price is a separate owner-set parameter (`pricePerDiemDayUSDC`). No collateral-price assumption.
   - **(B) Collateral market price — `DIEM = $1` is WRONG** (the actual bugs):
     - [x] `WstDiemUsdcOracle` — deprecated, unseeded (MOG-542)
     - [x] `WstDiemWethOracle` — deprecated, unseeded (MOG-542)

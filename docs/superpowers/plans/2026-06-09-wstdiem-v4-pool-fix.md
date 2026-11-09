@@ -1061,7 +1061,7 @@ On the wstDIEM/USDC (line ~33) and wstDIEM/WETH (line ~34) rows, append to the L
 ```markdown
 > **wstDIEM/USDC and wstDIEM/WETH markets are DEPRECATED** (MOG-542/549): their oracles price wstDIEM collateral with a hardcoded DIEM=$1, which is wrong (DIEM ≈ $1,450). They are unseeded and must not be supplied to or borrowed from. The wstDIEM/VVV market (fully on-chain oracle) is the canonical lending venue.
 >
-> **MOG-549 sweep result:** "$1" appears in two roles. As an *inference entitlement* ($1/DIEM/day — `AgentTGERegistry` tier allocations, `InferenceProduct` capacity) it is CORRECT (Venice's real mechanic; sale price is a separate owner param `pricePerDiemDayUSDC=0.8e6`). As a *collateral market price* it is WRONG — but only the two oracles above + the V4 pool init (MOG-548) used it that way. `FeeRouter`/adapters/`Router` convert at market (`amountOutMinimum:0`), carrying no $1 assumption. Full checklist in the design spec.
+> **MOG-549 sweep result:** "$1" appears in two roles. As an *inference entitlement* ($1/DIEM/day — `AgentTGERegistry` tier allocations, `InferenceProduct` capacity) it is CORRECT (Venice's real mechanic; the sale price is a separate owner-set param, `pricePerDiemDayUSDC`). As a *collateral market price* it is WRONG — but only the two oracles above + the V4 pool init (MOG-548) used it that way. `FeeRouter`/adapters/`Router` convert at market (`amountOutMinimum:0`), carrying no $1 assumption. Full checklist in the design spec.
 ```
 
 - [ ] **Step 3: Update the root `CLAUDE.md` oracle table**
@@ -1104,54 +1104,7 @@ git push -u origin <branch>
 
 # GATED MAINNET DEPLOY (Tasks 9–10) — operator-triggered only
 
-> **Do not run these during automated plan execution.** They broadcast real transactions from deployer v6 / the Safe. Run only on explicit go-ahead, one at a time, verifying each on Basescan before the next.
-
-## Task 9: Deploy hook + init pool (deployer v6)
-
-- [ ] **Step 1: Fund deployer v6 if needed** — from wstdiem-deployer Splits `0xf4DB2a7B6902924EFCd8270d23B205969EfF3316`. Deployer v6 key: `op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credential --reveal` (vault Personal).
-
-- [ ] **Step 2: Deploy the hook**
-```bash
-PK=$(/opt/homebrew/bin/op item get rhuh6s2tocpjzdi7kvvnjrps7i --field credential --reveal | tr -d '[:space:]')
-DEPLOYER_PK="$PK" BASE_RPC_URL=<url> ~/.foundry/bin/forge script script/vault/DeployWstDiemHook.s.sol \
-  --rpc-url $BASE_RPC_URL --private-key "$PK" --broadcast --verify --etherscan-api-key <key>
-```
-Record the deployed hook address → `export WSTDIEM_HOOK=0x...`
-
-- [ ] **Step 3: Compute sqrtPriceX96 off-chain** — using your trusted tooling (e.g. Uniswap SDK): price = wstDIEM-per-WETH = WETH_USD / (convertToAssets(1e18)/1e18 × DIEM_VVV_rate × VVV_USD); `sqrtPriceX96 = sqrt(price)·2^96`. Note the current VVV/USD spot (8-dec, e.g. `1530000000` for $15.30) for `VVV_USD_E8`. The script re-derives an on-chain anchor and rejects if your sqrtPrice is >300 ticks (~3%) off it, so both must agree.
-
-- [ ] **Step 4: Initialize the pool**
-```bash
-WSTDIEM_HOOK=0x... SQRT_PRICE_X96=<computed> VVV_USD_E8=<vvv-usd-8dec> \
-DEPLOYER_PK="$PK" BASE_RPC_URL=<url> ~/.foundry/bin/forge script script/vault/InitV4Pool.s.sol \
-  --rpc-url $BASE_RPC_URL --private-key "$PK" --broadcast
-```
-Confirm logged `expected tick` ≈ `implied tick` before it broadcasts. Verify on Basescan post-init: slot0 tick matches the implied tick logged.
-
-## Task 10: Redeploy Router + Safe config
-
-- [ ] **Step 1: Redeploy Router** (deployer v6, ownership transfers to Safe in-script)
-```bash
-DEPLOYER_PK="$PK" BASE_RPC_URL=<url> ~/.foundry/bin/forge script script/vault/DeployRouter.s.sol \
-  --rpc-url $BASE_RPC_URL --private-key "$PK" --broadcast --verify --etherscan-api-key <key>
-```
-Record → `export ROUTER=0x...`
-
-- [ ] **Step 2: Configure Router via Safe** (signers: SK1 `mog.capital/liq-safe-signer-1`, SK2 `Personal/liq-safe-signer-2`)
-```bash
-ROUTER=0x... WSTDIEM_HOOK=0x... \
-SAFE_SK1=<bytes32> SAFE_SK2=<bytes32> EXECUTOR_PK="$PK" BASE_RPC_URL=<url> \
-~/.foundry/bin/forge script script/vault/ConfigureRouterV4.s.sol \
-  --rpc-url $BASE_RPC_URL --broadcast
-```
-
-- [ ] **Step 3: Post-deploy verification**
-  - `cast call $ROUTER "wstDiemV4Hooks()(address)"` == hook
-  - `cast call $ROUTER "wstDiemV4Fee()(uint24)"` == 8388608
-  - `cast call $ROUTER "v4Pool()(address)"` == PoolManager
-  - Update `docs/vault/mainnet-addresses.md` with new Router + hook + pool ID
-  - Update memory `project_wstdiem_vault.md` and CLAUDE.md address tables
-  - Close MOG-548; close MOG-542 + MOG-549 with the audit-sweep checklist from the spec
+> Tasks 9–10 broadcast real transactions from the deployer and the Safe. Their operator procedure (key handling, funding, signer steps) is internal and was moved to the private ops repo (MOG-725). In short: deploy `WstDIEMHook` (`script/vault/DeployWstDiemHook.s.sol`), initialize the pool (`script/vault/InitV4Pool.s.sol`, after checking the logged expected tick ≈ implied tick), redeploy the Router (`script/vault/DeployRouter.s.sol`) and configure it through the Safe (`script/vault/ConfigureRouterV4.s.sol`). Then verify `wstDiemV4Hooks()`, `wstDiemV4Fee()` and `v4Pool()` on the Router and update `docs/vault/mainnet-addresses.md`.
 
 ---
 
