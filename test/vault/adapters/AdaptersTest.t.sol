@@ -6,6 +6,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 
 import {InferenceVault} from "../../../src/vault/InferenceVault.sol";
 import {AntSeedAdapter} from "../../../src/vault/adapters/AntSeedAdapter.sol";
+import {GondolaAdapter} from "../../../src/vault/adapters/GondolaAdapter.sol";
 import {SurplusAdapter} from "../../../src/vault/adapters/SurplusAdapter.sol";
 import {X402Adapter} from "../../../src/vault/adapters/X402Adapter.sol";
 import {MockDIEM} from "../mocks/MockDIEM.sol";
@@ -31,6 +32,7 @@ contract AdaptersTest is Test {
     AntSeedAdapter antSeed;
     SurplusAdapter surplus;
     X402Adapter x402;
+    GondolaAdapter gondola;
 
     // MockSwapRouter: 1 USDC (1e6) → 1e18 DIEM
     uint256 constant USDC_TO_DIEM = 1e12;
@@ -49,6 +51,8 @@ contract AdaptersTest is Test {
         vault.setVenueAdapter(address(antSeed), true);
         vault.setVenueAdapter(address(surplus), true);
         vault.setVenueAdapter(address(x402), true);
+        gondola = new GondolaAdapter(address(vault), address(mockUsdc), address(router), owner);
+        vault.setVenueAdapter(address(gondola), true);
 
         vm.startPrank(owner);
         antSeed.setAuthorizedSettler(settler);
@@ -57,6 +61,7 @@ contract AdaptersTest is Test {
         antSeed.setKeeper(keeper);
         surplus.setKeeper(keeper);
         x402.setKeeper(keeper);
+        gondola.setKeeper(keeper);
         vm.stopPrank();
 
         // Seed vault so the rate is defined
@@ -189,6 +194,16 @@ contract AdaptersTest is Test {
         assertGt(vault.convertToAssets(1e18), rateBefore);
     }
 
+    // Gondola pays out by plain USDC transfer to the payout address (no receiveSettlement call).
+    function test_gondola_plainTransferPayout_routes() public {
+        _giveUsdc(address(gondola), 40e6);
+        uint256 rateBefore = vault.convertToAssets(1e18);
+        vm.prank(keeper);
+        gondola.routeYield(0);
+        assertGt(vault.convertToAssets(1e18), rateBefore);
+        assertEq(mockUsdc.balanceOf(address(gondola)), 0);
+    }
+
     function test_x402_routeYield_works() public {
         _giveUsdc(address(x402), 150e6);
         uint256 rateBefore = vault.convertToAssets(1e18);
@@ -278,6 +293,10 @@ contract AdaptersTest is Test {
 
     function test_inferenceName_surplus() public view {
         assertEq(surplus.inferenceName(), "Surplus Intelligence");
+    }
+
+    function test_inferenceName_gondola() public view {
+        assertEq(gondola.inferenceName(), "Gondola");
     }
 
     function test_inferenceName_x402() public view {
